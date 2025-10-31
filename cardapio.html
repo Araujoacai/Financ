@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="h-full">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cardápio Digital</title>
-    <!-- ... (tailwind e fontes) ... -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,96 +12,83 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-        .item-card {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        .modal-open {
+            overflow: hidden;
         }
-        .item-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        .item-added {
+            animation: pulse 0.5s ease-out;
         }
-        /* ... (spinner) ... */
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3b82f6;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-100">
 
     <!-- Cabeçalho -->
-    <header class="bg-white shadow-md sticky top-0 z-30">
-        <div class="container mx-auto max-w-5xl px-4 py-4 flex justify-between items-center">
+    <header class="bg-white shadow-md sticky top-0 z-40">
+        <div class="container mx-auto max-w-4xl p-4 flex justify-between items-center">
             <div class="flex items-center space-x-3">
-                <img id="logo-img" src="https://placehold.co/100x40/ffffff/6b7280?text=Logo" alt="Logo" class="h-8 w-auto" onerror="this.src='https://placehold.co/100x40/ffffff/6b7280?text=Logo';">
-                <h1 class="text-2xl font-bold text-gray-800 hidden sm:block">Nosso Cardápio</h1>
+                <img id="logo-img" src="https://placehold.co/150x50/ffffff/9ca3af?text=LOGO" alt="Logo" class="h-8 w-auto" onerror="this.src='https://placehold.co/150x50/ffffff/9ca3af?text=LOGO';">
+                <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Nosso Cardápio</h1>
             </div>
-            <!-- Indicador de Mesa -->
-            <div class="text-right">
-                <span class="text-sm text-gray-500">Mesa:</span>
-                <span id="selected-table-display" class="text-lg font-bold text-blue-600">...</span>
+            <div id="table-display" class="text-right">
+                <span class="text-xs text-gray-500 block">Mesa</span>
+                <span id="table-name-display" class="font-bold text-blue-600">...</span>
             </div>
         </div>
     </header>
 
-    <!-- Conteúdo Principal (Inicialmente oculto até a mesa ser definida) -->
-    <main id="main-content" class="container mx-auto max-w-5xl p-4 hidden">
+    <!-- Conteúdo Principal -->
+    <main id="main-content" class="container mx-auto max-w-4xl p-4 sm:p-6 hidden">
         
-        <!-- Categorias (Nav) -->
+        <!-- Filtro de Categorias -->
         <nav class="mb-6">
-            <h2 class="text-lg font-semibold text-gray-700 mb-3">Categorias</h2>
-            <div id="categories-tabs" class="flex items-center space-x-2 overflow-x-auto pb-2">
-                <!-- Tabs serão inseridas aqui -->
-                <p class="text-gray-500">A carregar categorias...</p>
+            <h2 class="text-sm font-semibold text-gray-600 mb-3">Categorias</h2>
+            <div id="category-filters" class="flex flex-wrap gap-2">
+                <!-- Botões de filtro serão inseridos aqui -->
+                <span class="text-gray-500">A carregar categorias...</span>
             </div>
         </nav>
 
-        <!-- Menu/Produtos -->
-        <section id="menu-items" class="space-y-8">
+        <!-- Seções do Cardápio -->
+        <div id="menu-sections" class="space-y-8">
             <!-- Seções de categoria e produtos serão inseridas aqui -->
-        </section>
+            <p id="menu-loader" class="text-center text-gray-500 py-10">A carregar cardápio...</p>
+        </div>
 
     </main>
 
-    <!-- Carrinho Flutuante -->
-    <div id="cart-button-container" class="fixed bottom-6 right-6 z-40">
-        <button id="cart-button" class="bg-blue-600 text-white font-bold py-4 px-5 rounded-full shadow-lg flex items-center space-x-3 hover:bg-blue-700 transition-colors hidden">
-            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
-            <span id="cart-total-display">Ver Carrinho (R$ 0,00)</span>
-            <span id="cart-count-badge" class="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">0</span>
-        </button>
-    </div>
+    <!-- Botão Flutuante do Carrinho -->
+    <button id="open-cart-btn" class="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-lg z-50 flex items-center justify-center hover:bg-blue-700 transition-transform hover:scale-105">
+        <svg class="w-7 h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
+        <span id="cart-count-badge" class="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full px-2 py-0.5 min-w-[24px] hidden">0</span>
+    </button>
 
-    <!-- Modal: Seleção de Mesa (Inicialmente visível se não houver param) -->
-    <div id="table-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50 p-4">
-        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
-            <h2 class="text-3xl font-bold text-gray-800 mb-4">Bem-vindo(a)!</h2>
-            <p class="text-lg text-gray-600 mb-6">Por favor, selecione a sua mesa para continuar:</p>
+    <!-- Modal: Seleção de Mesa (Inicial) -->
+    <div id="table-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-sm text-center">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Bem-vindo(a)!</h2>
+            <p class="text-gray-600 mb-6">Por favor, selecione a sua mesa para continuar:</p>
             <form id="table-select-form">
-                <select id="table-select" class="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                <select id="table-select" class="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-6" required>
                     <option value="" disabled selected>-- Carregando mesas... --</option>
                 </select>
-                <button type="submit" class="w-full mt-6 bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
-                    Acessar Cardápio
+                <button type="submit" id="table-submit-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50" disabled>
+                    Aceder ao Cardápio
                 </button>
-                <p id="table-load-error" class="text-red-600 text-sm mt-4 hidden">
-                    Não foi possível conectar ao servidor. Verifique sua internet e tente recarregar.
-                </p>
             </form>
+            <p id="table-error" class="text-red-600 text-sm text-center mt-4 hidden">
+                Não foi possível conectar ao servidor. Verifique a sua internet e tente recarregar.
+            </p>
         </div>
     </div>
-    
-    <!-- Modal: Carrinho de Compras -->
-    <div id="cart-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4 hidden">
+
+    <!-- Modal: Carrinho / Resumo do Pedido -->
+    <div id="cart-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4 hidden modal-open">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col transform transition-all">
-            <!-- ... (Cabeçalho do Modal Carrinho) ... -->
+            <!-- Cabeçalho -->
             <div class="flex justify-between items-center p-5 border-b">
                 <h3 class="text-2xl font-bold text-gray-800">Seu Pedido</h3>
                 <button id="close-cart-modal" class="p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600 focus:outline-none">
@@ -110,33 +96,43 @@
                 </button>
             </div>
             <!-- Conteúdo -->
-            <div id="cart-items-list" class="p-6 overflow-y-auto space-y-4">
-                <!-- Itens do carrinho -->
-            </div>
-            <!-- Rodapé (Total e Ações) -->
-            <div class="p-5 border-t bg-gray-50 rounded-b-xl">
+            <div id="cart-content" class="p-6 overflow-y-auto">
+                <div id="cart-items-list" class="space-y-4">
+                    <!-- Itens do carrinho ou mensagem de vazio -->
+                </div>
+                
                 <!-- Observações -->
-                <div class="mb-4">
+                <div class="mt-6">
                     <label for="order-notes" class="block text-sm font-medium text-gray-700 mb-1">Observações (opcional):</label>
-                    <textarea id="order-notes" rows="2" placeholder="Ex: Tirar a cebola, ponto da carne..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                    <textarea id="order-notes" rows="3" placeholder="Ex: Sem cebola, ponto da carne, etc." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                 </div>
-                <!-- Total -->
+            </div>
+            <!-- Rodapé (Total e Ação) -->
+            <div class="p-5 border-t bg-gray-50 rounded-b-xl">
                 <div class="flex justify-between items-center mb-4">
-                    <span class="text-xl font-bold text-gray-600">Total:</span>
-                    <span id="cart-total-final" class="text-2xl font-bold text-gray-900">R$ 0,00</span>
+                    <span class="text-lg font-bold text-gray-600">Total:</span>
+                    <span id="cart-total" class="text-2xl font-bold text-gray-900">R$ 0,00</span>
                 </div>
-                <!-- Botão Finalizar -->
-                <button id="submit-order-button" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50">
+                <button id="submit-order-btn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50">
                     <span id="submit-order-text">Finalizar Pedido</span>
-                    <div id="submit-order-spinner" class="btn-loader ml-3 hidden" style="border-top-color: white; border-right-color: white; border-bottom-color: white; border-left-color: #4ade80;"></div>
+                    <div id="submit-order-spinner" class="btn-loader ml-2 hidden"></div>
                 </button>
             </div>
         </div>
     </div>
     
-    <!-- Modal: Item Adicionado -->
-    <div id="item-added-toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg hidden transform transition-all z-50">
-        Item adicionado ao carrinho!
+    <!-- Modal: Pedido Enviado (Sucesso) -->
+    <div id="success-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4 hidden modal-open">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm text-center">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-10 h-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-3">Pedido Enviado!</h2>
+            <p class="text-gray-600 mb-6">O seu pedido foi enviado para a cozinha. Em breve será servido!</p>
+            <button id="close-success-modal" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                Pedir mais itens
+            </button>
+        </div>
     </div>
 
 
@@ -145,19 +141,20 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
             getAuth, 
-            signInAnonymously, 
-            onAuthStateChanged 
+            signInAnonymously,
+            onAuthStateChanged
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, 
             collection, 
             doc, 
-            getDoc, 
-            getDocs, 
+            getDoc,
+            getDocs,
             addDoc,
-            query, 
-            where,
             Timestamp,
+            query,
+            where,
+            onSnapshot,
             setLogLevel
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -167,271 +164,185 @@
             const configModule = await import('./firebase-config.js');
             firebaseConfig = configModule.firebaseConfig;
             restaurantAppId = configModule.restaurantAppId;
+            if (!firebaseConfig || !restaurantAppId) {
+                throw new Error("Configuração incompleta.");
+            }
         } catch (e) {
             console.error("Erro fatal: Não foi possível carregar 'firebase-config.js'.", e);
-            document.getElementById('table-load-error').classList.remove('hidden');
+            document.getElementById('table-error').innerText = 'Erro de Configuração. Verifique o console (F12) e o arquivo firebase-config.js.';
+            document.getElementById('table-error').classList.remove('hidden');
         }
 
-        // --- Variáveis Globais ---
         let app, auth, db, userId;
-        let productsCache = [];
-        let categoriesCache = [];
+        let selectedTableId = null;
+        let selectedTableName = null;
         let cart = []; // Nosso carrinho
-        let selectedTableId = null; // ID da mesa selecionada
-        let selectedTableName = null; // Nome da mesa
-        let isFirebaseReady = false;
+        let categoriesCache = []; // Cache para nomes
+        let productsCache = []; // Cache para produtos
 
-        // --- Elementos DOM ---
         const mainContent = document.getElementById('main-content');
+        const menuLoader = document.getElementById('menu-loader');
+        const tableNameDisplay = document.getElementById('table-name-display');
+        
+        // Modal de Mesa
         const tableModal = document.getElementById('table-modal');
         const tableSelectForm = document.getElementById('table-select-form');
         const tableSelect = document.getElementById('table-select');
-        const tableLoadError = document.getElementById('table-load-error');
-        const selectedTableDisplay = document.getElementById('selected-table-display');
+        const tableSubmitBtn = document.getElementById('table-submit-btn');
+        const tableError = document.getElementById('table-error');
         
-        const categoriesTabs = document.getElementById('categories-tabs');
-        const menuItems = document.getElementById('menu-items');
+        // Cardápio
+        const categoryFilters = document.getElementById('category-filters');
+        const menuSections = document.getElementById('menu-sections');
         
-        const cartButtonContainer = document.getElementById('cart-button-container');
-        const cartButton = document.getElementById('cart-button');
-        const cartTotalDisplay = document.getElementById('cart-total-display');
+        // Carrinho
+        const openCartBtn = document.getElementById('open-cart-btn');
         const cartCountBadge = document.getElementById('cart-count-badge');
-        
         const cartModal = document.getElementById('cart-modal');
         const closeCartModal = document.getElementById('close-cart-modal');
         const cartItemsList = document.getElementById('cart-items-list');
-        const cartTotalFinal = document.getElementById('cart-total-final');
-        const orderNotesInput = document.getElementById('order-notes');
-        const submitOrderButton = document.getElementById('submit-order-button');
+        const cartTotal = document.getElementById('cart-total');
+        const orderNotes = document.getElementById('order-notes');
+        const submitOrderBtn = document.getElementById('submit-order-btn');
         const submitOrderText = document.getElementById('submit-order-text');
         const submitOrderSpinner = document.getElementById('submit-order-spinner');
 
-        const itemAddedToast = document.getElementById('item-added-toast');
+        // Modal de Sucesso
+        const successModal = document.getElementById('success-modal');
+        const closeSuccessModal = document.getElementById('close-success-modal');
+        
+        // Logo
         const logoImg = document.getElementById('logo-img');
 
-
-        // --- Caminhos Firestore ---
         const getCollectionPath = (colName) => `artifacts/${restaurantAppId}/public/data/${colName}`;
-        
 
-        // --- Funções Principais ---
-
-        // 1. Inicializar Firebase
         async function initFirebase() {
-            if (!firebaseConfig) return; // Erro já tratado na importação
+             if (!firebaseConfig) {
+                 tableError.innerText = "Erro de Configuração. Verifique o console (F12).";
+                 tableError.classList.remove('hidden');
+                 return;
+             }
             
             try {
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
                 setLogLevel('Debug');
-
+                
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        // Usuário está logado anonimamente
+                        // Usuário está logado (anonimamente)
                         userId = user.uid;
-                        isFirebaseReady = true;
+                        console.log("Logado anonimamente com UID:", userId);
                         
-                        // 1. Carregar Config (Logo)
-                        loadConfig();
-                        
-                        // 2. Verificar se a mesa veio pela URL
-                        checkUrlParamsAndLoad();
+                        // 1. Verificar se a URL tem um tableId
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const tableIdFromUrl = urlParams.get('tableId');
 
+                        // 2. Carregar mesas (necessário em ambos os casos)
+                        await loadTables();
+
+                        if (tableIdFromUrl) {
+                            // 3. Se veio da URL (QR Code), tentar validar a mesa
+                            const tableExists = validateTableFromUrl(tableIdFromUrl);
+                            if (tableExists) {
+                                // Selecionar mesa, fechar modal e carregar cardápio
+                                selectMesa(tableIdFromUrl, selectedTableName);
+                            } else {
+                                // Mesa inválida, mostrar modal de seleção
+                                console.warn("TableId da URL é inválido ou inativo. A mostrar seleção manual.");
+                                tableModal.classList.remove('hidden');
+                            }
+                        } else {
+                            // 4. Se não veio da URL, mostrar modal de seleção
+                            tableModal.classList.remove('hidden');
+                        }
+                        
                     } else {
                         // Tentar login anônimo
                         await signInAnonymously(auth);
                     }
                 });
+
             } catch (error) {
                 console.error("Erro ao inicializar Firebase:", error);
-                tableLoadError.classList.remove('hidden');
+                tableError.classList.remove('hidden');
             }
         }
         
-        // 2. Verificar Parâmetros da URL
-        async function checkUrlParamsAndLoad() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const tableIdFromUrl = urlParams.get('table');
-            const tableNameFromUrl = urlParams.get('tableName');
-
-            if (tableIdFromUrl && tableNameFromUrl) {
-                // Mesa veio pela URL (QR Code)
-                selectedTableId = tableIdFromUrl;
-                selectedTableName = decodeURIComponent(tableNameFromUrl);
-                
-                // Atualiza a UI
-                selectedTableDisplay.innerText = selectedTableName;
-                
-                // Pula o modal e carrega o menu
-                tableModal.classList.add('hidden');
-                mainContent.classList.remove('hidden');
-                await loadMenu(); // Carrega categorias e produtos
-            } else {
-                // Nenhum parâmetro, mostrar modal de seleção
-                selectedTableDisplay.innerText = "Nenhuma";
-                tableModal.classList.remove('hidden');
-                mainContent.classList.add('hidden');
-                await loadTablesForSelection(); // Carrega só as mesas
-            }
-        }
-
-        // 3. Carregar Mesas (para o Modal)
-        async function loadTablesForSelection() {
-            if (!isFirebaseReady) return;
-            
+        // Carregar mesas ativas para o select
+        async function loadTables() {
             try {
                 const tablesCol = collection(db, getCollectionPath('tables'));
-                // CORREÇÃO: Remover filtro 'where'
-                const q = query(tablesCol);
-                const querySnap = await getDocs(q);
+                // REMOVIDO `where("active", "==", true)` para evitar índice
+                const snapshot = await getDocs(query(tablesCol));
                 
-                tableSelect.innerHTML = '<option value="" disabled selected>-- Selecione sua mesa --</option>';
-                let tableCount = 0;
-                
-                querySnap.forEach(doc => {
-                    const table = { id: doc.id, ...doc.data() };
-                    // CORREÇÃO: Filtro manual (só mostra se 'active' for true OU se 'active' não existir)
-                    if (table.active === true || table.active === undefined) {
-                        tableSelect.innerHTML += `<option value="${table.id}" data-name="${table.name}">${table.name}</option>`;
-                        tableCount++;
-                    }
-                });
-
-                if (tableCount === 0) {
-                    tableSelect.innerHTML = '<option value="" disabled selected>-- Nenhuma mesa cadastrada (ou ativa) --</option>';
-                    tableSelect.disabled = true;
-                } else {
-                    tableSelect.disabled = false;
+                if (snapshot.empty) {
+                    tableSelect.innerHTML = '<option value="" disabled>Nenhuma mesa encontrada</option>';
+                    return;
                 }
                 
+                let optionsHtml = '<option value="" disabled selected>-- Selecione sua mesa --</option>';
+                let tablesCache = []; // Cache para validar URL
+                
+                snapshot.forEach(doc => {
+                    const table = { id: doc.id, ...doc.data() };
+                    // FILTRO JS: Mostrar apenas se active for true ou indefinido (para mesas antigas)
+                    if (table.active === true || typeof table.active === 'undefined') {
+                        optionsHtml += `<option value="${table.id}">${table.name}</option>`;
+                        tablesCache.push(table);
+                    }
+                });
+                
+                tableSelect.innerHTML = optionsHtml;
+                tableSubmitBtn.disabled = false;
+                
+                // Salvar cache para validação de URL
+                sessionStorage.setItem('tablesCache', JSON.stringify(tablesCache));
+
             } catch (error) {
                 console.error("Erro ao carregar mesas:", error);
-                tableLoadError.classList.remove('hidden');
-                tableSelect.innerHTML = '<option value="" disabled selected>-- Erro ao carregar mesas --</option>';
+                tableError.classList.remove('hidden');
             }
         }
+        
+        // Validar se o tableId da URL é de uma mesa ativa
+        function validateTableFromUrl(tableId) {
+            const tablesCache = JSON.parse(sessionStorage.getItem('tablesCache') || '[]');
+            const table = tablesCache.find(t => t.id === tableId);
+            if (table) {
+                selectedTableId = table.id;
+                selectedTableName = table.name;
+                return true;
+            }
+            return false;
+        }
 
-        // 4. Carregar Cardápio (Categorias e Produtos)
-        async function loadMenu() {
-            if (!isFirebaseReady) return;
+        // Evento de seleção de mesa
+        tableSelectForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const tableId = tableSelect.value;
+            const tableName = tableSelect.options[tableSelect.selectedIndex].text;
+            if (tableId) {
+                selectMesa(tableId, tableName);
+            }
+        });
+
+        // Ação de selecionar a mesa e carregar o app
+        function selectMesa(id, name) {
+            selectedTableId = id;
+            selectedTableName = name;
             
-            categoriesTabs.innerHTML = '<div class="loader"></div>';
-            menuItems.innerHTML = '<div class="loader"></div>';
-
-            try {
-                // Carregar Categorias
-                const categoriesCol = collection(db, getCollectionPath('categories'));
-                const catQuery = query(categoriesCol); // Removido filtro 'where'
-                const catSnap = await getDocs(catQuery);
-                
-                categoriesCache = [];
-                catSnap.forEach(doc => {
-                    const category = { id: doc.id, ...doc.data() };
-                    // Filtro manual
-                    if (category.active === true || category.active === undefined) { 
-                        categoriesCache.push(category);
-                    }
-                });
-                
-                // Carregar Produtos
-                const productsCol = collection(db, getCollectionPath('products'));
-                const prodQuery = query(productsCol); // Removido filtro 'where'
-                const prodSnap = await getDocs(prodQuery);
-                
-                productsCache = [];
-                prodSnap.forEach(doc => {
-                    const product = { id: doc.id, ...doc.data() };
-                     // Filtro manual
-                    if (product.active === true || product.active === undefined) {
-                        productsCache.push(product);
-                    }
-                });
-
-                // Renderizar o menu
-                renderMenu();
-
-            } catch (error) {
-                console.error("Erro ao carregar cardápio:", error);
-                // CORREÇÃO: Log detalhado
-                if (error.code === 'permission-denied') {
-                     console.error("Erro detalhado: Permissão negada. Verifique as Regras do Firestore.");
-                }
-                menuItems.innerHTML = '<p class="text-red-500 text-center">Erro ao carregar o cardápio. Tente recarregar a página.</p>';
-                categoriesTabs.innerHTML = '';
-            }
+            tableNameDisplay.innerText = name;
+            tableModal.classList.add('hidden');
+            mainContent.classList.remove('hidden');
+            
+            // Carregar o restante do app
+            loadConfig();
+            loadMenu();
         }
         
-        // 5. Renderizar o Cardápio (com base nos caches)
-        function renderMenu() {
-            // Limpar
-            categoriesTabs.innerHTML = '';
-            menuItems.innerHTML = '';
-
-            if (categoriesCache.length === 0) {
-                menuItems.innerHTML = '<p class="text-gray-500 text-center">Nenhum produto cadastrado no momento.</p>';
-                return;
-            }
-
-            // Criar Tabs
-            categoriesCache.forEach((cat, index) => {
-                const isActive = index === 0;
-                const tab = document.createElement('button');
-                tab.className = `category-tab whitespace-nowrap px-4 py-2 rounded-full font-medium ${isActive ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-200'}`;
-                tab.innerText = cat.name;
-                tab.dataset.categoryId = cat.id;
-                tab.onclick = () => {
-                    // Mudar tab ativa
-                    document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('bg-blue-600', 'text-white'));
-                    tab.classList.add('bg-blue-600', 'text-white');
-                    // Scroll suave para a seção
-                    document.getElementById(`category-section-${cat.id}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
-                };
-                categoriesTabs.appendChild(tab);
-            });
-
-            // Criar Seções de Produtos
-            categoriesCache.forEach(cat => {
-                const section = document.createElement('section');
-                section.id = `category-section-${cat.id}`;
-                section.className = "scroll-mt-24"; // Offset por causa do header sticky
-                
-                const productsInCategory = productsCache.filter(p => p.categoryId === cat.id);
-                
-                if (productsInCategory.length > 0) {
-                    section.innerHTML = `<h2 class="text-2xl font-bold text-gray-900 mb-4">${cat.name}</h2>`;
-                    const grid = document.createElement('div');
-                    grid.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6";
-                    
-                    productsInCategory.forEach(prod => {
-                        const card = document.createElement('div');
-                        card.className = "item-card bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer flex";
-                        card.dataset.productId = prod.id;
-                        
-                        card.innerHTML = `
-                            <div class="p-5 flex-grow">
-                                <h3 class="text-lg font-bold text-gray-800">${prod.name}</h3>
-                                <p class="text-sm text-gray-500 mb-3">${prod.description || ''}</p>
-                                <span class="text-lg font-bold text-blue-600">R$ ${parseFloat(prod.price || 0).toFixed(2).replace('.', ',')}</span>
-                            </div>
-                            <div class="flex-shrink-0 w-24 bg-gray-200 flex items-center justify-center">
-                                <img src="https://placehold.co/100x100/e5e7eb/9ca3af?text=Img" alt="${prod.name}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/100x100/e5e7eb/9ca3af?text=Img';">
-                            </div>
-                        `;
-                        // Adicionar ao carrinho ao clicar
-                        card.addEventListener('click', () => {
-                            addToCart(prod.id);
-                        });
-                        grid.appendChild(card);
-                    });
-                    
-                    section.appendChild(grid);
-                }
-                menuItems.appendChild(section);
-            });
-        }
-        
-        // 6. Carregar Config (Logo)
+        // Carregar logo
         async function loadConfig() {
             try {
                 const configDocRef = doc(db, getCollectionPath('config'), 'main');
@@ -440,16 +351,179 @@
                     logoImg.src = docSnap.data().logoUrl;
                 }
             } catch (error) {
-                console.error("Erro ao carregar config (logo):", error);
+                console.error("Erro ao carregar config:", error);
+            }
+        }
+
+        // Carregar categorias e produtos
+        async function loadMenu() {
+            try {
+                // 1. Carregar Categorias
+                const categoriesCol = collection(db, getCollectionPath('categories'));
+                // REMOVIDO `where("active", "==", true)`
+                const categoriesSnap = await getDocs(query(categoriesCol));
+                
+                categoriesCache = [];
+                let categoryButtonsHtml = '<button class="category-filter-btn active" data-category-id="all">Todos</button>';
+                
+                categoriesSnap.forEach(doc => {
+                    const category = { id: doc.id, ...doc.data() };
+                    // FILTRO JS
+                    if (category.active) {
+                        categoriesCache.push(category);
+                        categoryButtonsHtml += `
+                            <button class="category-filter-btn" data-category-id="${category.id}">
+                                ${category.name}
+                            </button>
+                        `;
+                    }
+                });
+                categoryFilters.innerHTML = categoryButtonsHtml;
+
+                // 2. Carregar Produtos
+                const productsCol = collection(db, getCollectionPath('products'));
+                // REMOVIDO `where("active", "==", true)`
+                const productsSnap = await getDocs(query(productsCol));
+                
+                productsCache = [];
+                productsSnap.forEach(doc => {
+                    const product = { id: doc.id, ...doc.data() };
+                    // FILTRO JS
+                    if (product.active) {
+                        productsCache.push(product);
+                    }
+                });
+                
+                menuLoader.classList.add('hidden');
+                renderMenu();
+                setupCategoryFilter();
+
+            } catch (error) {
+                console.error("Erro ao carregar cardápio:", error);
+                menuLoader.innerText = "Erro ao carregar o cardápio. Tente recarregar a página.";
             }
         }
         
-        // --- Funções do Carrinho ---
+        // Renderizar o menu baseado nos dados cacheados
+        function renderMenu() {
+            menuSections.innerHTML = '';
+            
+            if (productsCache.length === 0) {
+                 menuSections.innerHTML = '<p class="text-center text-gray-500 py-10">Nenhum produto encontrado.</p>';
+                 return;
+            }
+            
+            // Agrupar produtos por categoria
+            categoriesCache.forEach(category => {
+                const productsInCategory = productsCache.filter(p => p.categoryId === category.id);
+                
+                // Só renderizar a seção se houver produtos nela
+                if (productsInCategory.length > 0) {
+                    let productsHtml = '';
+                    productsInCategory.forEach(product => {
+                        productsHtml += createProductCard(product);
+                    });
+                    
+                    menuSections.innerHTML += `
+                        <section id="category-section-${category.id}" class="menu-category-section">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4">${category.name}</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                ${productsHtml}
+                            </div>
+                        </section>
+                    `;
+                }
+            });
+            
+            // Adicionar listeners aos botões "Adicionar"
+            document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.target.closest('.product-card').dataset.id;
+                    addToCart(id);
+                    // Feedback visual
+                    e.target.innerText = "Adicionado!";
+                    e.target.classList.add('bg-green-600', 'hover:bg-green-700');
+                    e.target.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                    setTimeout(() => {
+                        e.target.innerText = "Adicionar";
+                        e.target.classList.remove('bg-green-600', 'hover:bg-green-700');
+                        e.target.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                    }, 1000);
+                });
+            });
+        }
         
+        // Criar o HTML de um produto
+        function createProductCard(product) {
+            const price = parseFloat(product.price || 0).toFixed(2).replace('.', ',');
+            const placeholder = "https://placehold.co/100x100/e5e7eb/9ca3af?text=Img";
+            const imageUrl = product.imageUrl || placeholder;
+
+            return `
+                <div class="product-card bg-white p-4 rounded-xl shadow-md flex gap-4" data-id="${product.id}">
+                    <div class="flex-grow">
+                        <h3 class="text-lg font-bold text-gray-800">${product.name}</h3>
+                        <p class="text-sm text-gray-600 my-1">${product.description || ''}</p>
+                        <span class="text-lg font-bold text-blue-600">R$ ${price}</span>
+                        <button class="add-to-cart-btn mt-3 w-full sm:w-auto bg-blue-600 text-white font-medium py-1.5 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                            Adicionar
+                        </button>
+                    </div>
+                    <img src="${imageUrl}" 
+                         alt="${product.name}" 
+                         class="w-24 h-24 sm:w-28 sm:h-28 rounded-md object-cover flex-shrink-0 bg-gray-200 text-transparent"
+                         onerror="this.src='${placeholder}'; this.onerror=null;">
+                </div>
+            `;
+        }
+
+        // Lógica do Filtro de Categoria
+        function setupCategoryFilter() {
+            const filterButtons = document.querySelectorAll('.category-filter-btn');
+            const productSections = document.querySelectorAll('.menu-category-section');
+
+            filterButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const categoryId = button.dataset.categoryId;
+
+                    // Atualizar botão ativo
+                    filterButtons.forEach(btn => btn.classList.remove('active', 'bg-blue-600', 'text-white'));
+                    filterButtons.forEach(btn => btn.classList.add('bg-white', 'text-gray-700', 'hover:bg-gray-50'));
+                    
+                    button.classList.add('active', 'bg-blue-600', 'text-white');
+                    button.classList.remove('bg-white', 'text-gray-700', 'hover:bg-gray-50');
+
+                    // Mostrar/Ocultar seções de produtos
+                    productSections.forEach(section => {
+                        if (categoryId === 'all' || section.id === `category-section-${categoryId}`) {
+                            section.classList.remove('hidden');
+                        } else {
+                            section.classList.add('hidden');
+                        }
+                    });
+                    
+                    // Ajustar estilo dos botões
+                    filterButtons.forEach(btn => {
+                        if (btn.classList.contains('active')) {
+                            btn.className = "category-filter-btn active py-2 px-4 rounded-full font-medium text-sm transition-colors bg-blue-600 text-white";
+                        } else {
+                            btn.className = "category-filter-btn py-2 px-4 rounded-full font-medium text-sm transition-colors bg-white text-gray-700 hover:bg-gray-50 border";
+                        }
+                    });
+                });
+            });
+            
+            // Ativar o botão "Todos" por padrão
+            document.querySelector('.category-filter-btn[data-category-id="all"]').click();
+        }
+
+
+        // --- Funções do Carrinho ---
+
         function addToCart(productId) {
             const product = productsCache.find(p => p.id === productId);
             if (!product) return;
-
+            
             const existingItem = cart.find(item => item.id === productId);
             
             if (existingItem) {
@@ -462,176 +536,133 @@
                     quantity: 1
                 });
             }
-            
-            showToast("Item adicionado ao carrinho!");
             updateCartUI();
         }
         
         function updateCartUI(isModalOpen = false) {
-            let totalValue = 0;
-            let totalCount = 0;
-            
-            cartItemsList.innerHTML = ''; // Limpar lista do modal
-            
-            if (cart.length === 0) {
-                cartButton.classList.add('hidden');
-                cartItemsList.innerHTML = '<p class="text-gray-500 text-center">Seu carrinho está vazio.</p>';
+            // Atualizar badge
+            const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+            if (totalItems > 0) {
+                cartCountBadge.innerText = totalItems;
+                cartCountBadge.classList.remove('hidden');
+                submitOrderBtn.disabled = false;
             } else {
-                cartButton.classList.remove('hidden');
-                
-                cart.forEach(item => {
-                    totalValue += item.price * item.quantity;
-                    totalCount += item.quantity;
-                    
-                    // Renderizar item no modal
-                    if (isModalOpen) {
-                        const itemEl = document.createElement('div');
-                        itemEl.className = "flex items-center justify-between";
-                        itemEl.innerHTML = `
-                            <div>
-                                <p class="font-bold text-gray-800">${item.name}</p>
-                                <p class="text-sm text-gray-600">R$ ${item.price.toFixed(2).replace('.', ',')} (cada)</p>
-                            </div>
-                            <div class="flex items-center space-x-3">
-                                <button data-id="${item.id}" class="decrease-qty-btn bg-gray-200 text-gray-700 w-7 h-7 rounded-full font-bold hover:bg-gray-300">-</button>
-                                <span class="font-medium w-6 text-center">${item.quantity}</span>
-                                <button data-id="${item.id}" class="increase-qty-btn bg-blue-600 text-white w-7 h-7 rounded-full font-bold hover:bg-blue-700">+</button>
-                            </div>
-                        `;
-                        cartItemsList.appendChild(itemEl);
-                    }
-                });
+                cartCountBadge.classList.add('hidden');
+                submitOrderBtn.disabled = true;
             }
             
-            // Atualizar botão flutuante
-            cartTotalDisplay.innerText = `Ver Carrinho (R$ ${totalValue.toFixed(2).replace('.', ',')})`;
-            cartCountBadge.innerText = totalCount;
+            // Se o modal do carrinho não estiver aberto, não precisa renderizar a lista
+            if (!isModalOpen) return;
             
-            // Atualizar total no modal
-            cartTotalFinal.innerText = `R$ ${totalValue.toFixed(2).replace('.', ',')}`;
+            if (cart.length === 0) {
+                cartItemsList.innerHTML = '<p class="text-center text-gray-500 py-6">O seu carrinho está vazio.</p>';
+                cartTotal.innerText = 'R$ 0,00';
+                return;
+            }
+            
+            cartItemsList.innerHTML = '';
+            let totalValue = 0;
+            
+            cart.forEach(item => {
+                totalValue += item.price * item.quantity;
+                cartItemsList.innerHTML += `
+                    <div class="flex items-center space-x-3 py-2 border-b last:border-b-0">
+                        <div class="flex-grow">
+                            <p class="font-medium text-gray-800">${item.name}</p>
+                            <p class="text-sm text-gray-600">R$ ${item.price.toFixed(2).replace('.', ',')} (cada)</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button data-id="${item.id}" class="cart-decrease-btn bg-gray-200 text-gray-700 w-7 h-7 rounded-full font-bold hover:bg-gray-300">-</button>
+                            <span class="w-8 text-center font-medium">${item.quantity}</span>
+                            <button data-id="${item.id}" class="cart-increase-btn bg-gray-200 text-gray-700 w-7 h-7 rounded-full font-bold hover:bg-gray-300">+</button>
+                        </div>
+                        <button data-id="${item.id}" class="cart-remove-btn text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100">
+                            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                `;
+            });
+            
+            cartTotal.innerText = `R$ ${totalValue.toFixed(2).replace('.', ',')}`;
+            
+            // Adicionar listeners
+            document.querySelectorAll('.cart-increase-btn').forEach(btn => btn.addEventListener('click', (e) => adjustCartItem(e.target.dataset.id, 1)));
+            document.querySelectorAll('.cart-decrease-btn').forEach(btn => btn.addEventListener('click', (e) => adjustCartItem(e.target.dataset.id, -1)));
+            document.querySelectorAll('.cart-remove-btn').forEach(btn => btn.addEventListener('click', (e) => adjustCartItem(e.target.dataset.id, 0)));
         }
         
-        cartButton.addEventListener('click', () => {
-            updateCartUI(true); // Renderizar itens ao abrir o modal
+        function adjustCartItem(productId, amount) {
+            const item = cart.find(i => i.id === productId);
+            if (!item) return;
+            
+            if (amount === 0) { // Remover
+                cart = cart.filter(i => i.id !== productId);
+            } else {
+                item.quantity += amount;
+                if (item.quantity <= 0) {
+                    cart = cart.filter(i => i.id !== productId);
+                }
+            }
+            updateCartUI(true);
+        }
+        
+        openCartBtn.addEventListener('click', () => {
+            updateCartUI(true); // Forçar renderização da lista
             cartModal.classList.remove('hidden');
+            document.body.classList.add('modal-open');
         });
         
         closeCartModal.addEventListener('click', () => {
             cartModal.classList.add('hidden');
+            document.body.classList.remove('modal-open');
         });
-        
-        // Event Listeners para botões +/- no modal (usando delegação)
-        cartItemsList.addEventListener('click', (e) => {
-            const id = e.target.dataset.id;
-            if (!id) return;
-            
-            const item = cart.find(i => i.id === id);
-            if (!item) return;
 
-            if (e.target.classList.contains('increase-qty-btn')) {
-                item.quantity++;
-            } else if (e.target.classList.contains('decrease-qty-btn')) {
-                item.quantity--;
-                if (item.quantity === 0) {
-                    // Remover do carrinho
-                    cart = cart.filter(i => i.id !== id);
-                }
-            }
+        // Enviar Pedido
+        submitOrderBtn.addEventListener('click', async () => {
+            if (cart.length === 0) return;
             
-            updateCartUI(true); // Atualizar a lista do modal
-        });
-        
-        function showToast(message) {
-            itemAddedToast.innerText = message;
-            itemAddedToast.classList.remove('hidden');
-            setTimeout(() => {
-                itemAddedToast.classList.add('hidden');
-            }, 2000);
-        }
-
-        // --- Eventos de Submissão ---
-
-        // 1. Seleção de Mesa (do Modal)
-        tableSelectForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const selectedOption = tableSelect.options[tableSelect.selectedIndex];
-            
-            selectedTableId = selectedOption.value;
-            selectedTableName = selectedOption.dataset.name;
-
-            if (!selectedTableId) {
-                alert("Por favor, selecione uma mesa.");
-                return;
-            }
-            
-            selectedTableDisplay.innerText = selectedTableName;
-            tableModal.classList.add('hidden');
-            mainContent.classList.remove('hidden');
-            
-            await loadMenu(); // Carregar categorias e produtos
-        });
-        
-        // 2. Envio do Pedido (do Carrinho)
-        async function handleSubmitOrder() {
-            if (cart.length === 0) {
-                alert("Seu carrinho está vazio.");
-                return;
-            }
-            
-            // Pegar ID e Nome da mesa (definidos pela URL ou pelo modal)
-            if (!selectedTableId) {
-                console.error("ERRO: ID da mesa não definido.");
-                alert("Ocorreu um erro. Tente recarregar a página.");
-                return;
-            }
-            
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            submitOrderBtn.disabled = true;
+            submitOrderText.innerText = "A enviar...";
+            submitOrderSpinner.classList.remove('hidden');
             
             const orderData = {
                 tableId: selectedTableId,
                 tableName: selectedTableName,
                 items: cart,
-                total: total,
-                notes: orderNotesInput.value.trim(),
-                status: 'pending', // Status inicial
-                createdAt: Timestamp.now() // Data/Hora
+                total: cart.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+                notes: orderNotes.value.trim(),
+                status: "pending", // pending, paid, cancelled
+                createdAt: Timestamp.now()
             };
             
-            // Feedback de carregamento
-            submitOrderButton.disabled = true;
-            submitOrderText.classList.add('hidden');
-            submitOrderSpinner.classList.remove('hidden');
-
             try {
-                const ordersCol = collection(db, getCollectionPath('orders'));
-                await addDoc(ordersCol, orderData);
+                await addDoc(collection(db, getCollectionPath('orders')), orderData);
                 
-                // Sucesso
-                cartModal.classList.add('hidden');
-                showToast("Pedido enviado com sucesso!");
-                
-                // Limpar carrinho
+                // Limpar carrinho e UI
                 cart = [];
-                orderNotesInput.value = '';
-                updateCartUI();
+                orderNotes.value = '';
+                updateCartUI(true);
+                cartModal.classList.add('hidden');
+                successModal.classList.remove('hidden');
 
             } catch (error) {
-                console.error("Erro ao enviar pedido:", error);
-                alert("Não foi possível enviar o pedido. Tente novamente.");
+                console.error("Erro ao enviar pedido: ", error);
+                alert("Erro ao enviar pedido. Tente novamente.");
             } finally {
-                // Resetar botão
-                submitOrderButton.disabled = false;
-                submitOrderText.classList.remove('hidden');
+                submitOrderBtn.disabled = false;
+                submitOrderText.innerText = "Finalizar Pedido";
                 submitOrderSpinner.classList.add('hidden');
             }
-        }
-        
-        submitOrderButton.addEventListener('click', handleSubmitOrder);
-        
+        });
+
+        closeSuccessModal.addEventListener('click', () => {
+            successModal.classList.add('hidden');
+            document.body.classList.remove('modal-open');
+        });
+
         // --- Inicialização ---
         initFirebase();
 
     </script>
 </body>
 </html>
-

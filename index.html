@@ -8,27 +8,24 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Script para gerar QR Code -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Biblioteca de QR Code -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Esconder a barra de rolagem principal quando o modal está aberto */
         .modal-open {
             overflow: hidden;
         }
-        /* Efeito de drag-and-drop */
         .kanban-column.dragging-over {
-            background-color: #f0f9ff; /* bg-blue-50 */
-            border-color: #3b82f6; /* border-blue-500 */
+            background-color: #f0f9ff;
+            border-color: #3b82f6;
         }
         .order-card.dragging {
             opacity: 0.5;
             transform: rotate(2deg);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        /* Spinner */
         .loader {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #3b82f6;
@@ -37,7 +34,6 @@
             height: 24px;
             animation: spin 1s linear infinite;
         }
-        /* Spinner pequeno para botão */
         .btn-loader {
             border: 2px solid #f3f3f3;
             border-top: 2px solid #ffffff;
@@ -50,32 +46,31 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        /* Fix para impressão do QR Code */
+        /* Estilos para Impressão do QR Code */
         @media print {
-            body {
+            body * {
                 visibility: hidden;
             }
-            #qrcode-modal, #qrcode-modal > div {
+            #qrcode-print-area, #qrcode-print-area * {
                 visibility: visible;
+            }
+            #qrcode-print-area {
                 position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                box-shadow: none;
-                border: none;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
+                text-align: center;
             }
-            #qrcode-container {
-                margin-top: 50px;
-            }
-            #close-qrcode-modal, #qrcode-modal-title, #qrcode-url, #print-qrcode-btn {
-                display: none;
+            @page {
+                size: A4;
+                margin: 20mm;
             }
         }
     </style>
 </head>
 <body class="h-full bg-gray-100">
 
-    <!-- Tela de Login (Inicialmente visível) -->
+    <!-- Tela de Login -->
     <div id="login-screen" class="flex items-center justify-center min-h-screen bg-gray-900 p-4">
         <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-sm">
             <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">Login do Painel</h2>
@@ -173,7 +168,6 @@
                             
                             <h3 class="text-lg font-bold text-gray-800 mt-6 mb-3">Categorias Existentes</h3>
                             <div id="categories-list" class="space-y-2 max-h-48 overflow-y-auto">
-                                <!-- Lista de categorias -->
                                 <p class="text-sm text-gray-500">A carregar categorias...</p>
                             </div>
                         </div>
@@ -191,7 +185,6 @@
                             
                             <h3 class="text-lg font-bold text-gray-800 mt-6 mb-3">Mesas Registadas</h3>
                             <div id="tables-list" class="space-y-2 max-h-48 overflow-y-auto">
-                                <!-- Lista de mesas -->
                                 <p class="text-sm text-gray-500">A carregar mesas...</p>
                             </div>
                         </div>
@@ -212,6 +205,12 @@
                                     <label for="product-description" class="block text-sm font-medium text-gray-700 mb-1">Descrição (opcional)</label>
                                     <textarea id="product-description" rows="3" placeholder="Ex: 350ml, gelada" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                                 </div>
+                                <!-- NOVO CAMPO DE IMAGEM -->
+                                <div class="mb-4">
+                                    <label for="product-image-url" class="block text-sm font-medium text-gray-700 mb-1">URL da Imagem (opcional)</label>
+                                    <input type="url" id="product-image-url" placeholder="https://..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
+                                <!-- FIM NOVO CAMPO -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                     <div>
                                         <label for="product-price" class="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
@@ -250,7 +249,6 @@
                                         </tr>
                                     </thead>
                                     <tbody id="products-list">
-                                        <!-- Lista de produtos -->
                                         <tr><td colspan="5" class="p-3 text-center text-gray-500">A carregar produtos...</td></tr>
                                     </tbody>
                                 </table>
@@ -263,52 +261,40 @@
             <!-- Página: Acompanhar Pedidos -->
             <div id="page-pedidos" class="page-content hidden h-full">
                 <h1 class="text-3xl font-bold text-gray-900 mb-8">Acompanhar Pedidos</h1>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 h-[calc(100vh-150px)]">
-                    
-                    <!-- Coluna Pendentes (ABERTO) -->
                     <div class="kanban-column bg-white rounded-xl shadow-lg flex flex-col" data-status="pending">
                         <h2 class="text-lg font-bold text-white bg-yellow-500 p-4 rounded-t-xl flex items-center justify-between">
                             Pendentes (Aberto)
                             <span id="pending-count" class="text-sm font-normal">(0)</span>
                         </h2>
                         <div id="pending-orders" class="p-4 space-y-4 overflow-y-auto flex-grow">
-                            <!-- Cards de pedidos -->
                             <p class="text-sm text-gray-500 text-center py-4">Nenhum pedido pendente.</p>
                         </div>
                     </div>
-
-                    <!-- Coluna Pagos (PAGO) -->
                     <div class="kanban-column bg-white rounded-xl shadow-lg flex flex-col" data-status="paid">
                         <h2 class="text-lg font-bold text-white bg-green-600 p-4 rounded-t-xl flex items-center justify-between">
                             Pagos
                             <span id="paid-count" class="text-sm font-normal">(0)</span>
                         </h2>
                         <div id="paid-orders" class="p-4 space-y-4 overflow-y-auto flex-grow">
-                            <!-- Cards de pedidos -->
                             <p class="text-sm text-gray-500 text-center py-4">Nenhum pedido pago.</p>
                         </div>
                     </div>
-
-                    <!-- Coluna Cancelados (CANCELADO) -->
                     <div class="kanban-column bg-white rounded-xl shadow-lg flex flex-col" data-status="cancelled">
                         <h2 class="text-lg font-bold text-white bg-red-600 p-4 rounded-t-xl flex items-center justify-between">
                             Cancelados
                             <span id="cancelled-count" class="text-sm font-normal">(0)</span>
                         </h2>
                         <div id="cancelled-orders" class="p-4 space-y-4 overflow-y-auto flex-grow">
-                            <!-- Cards de pedidos -->
                             <p class="text-sm text-gray-500 text-center py-4">Nenhum pedido cancelado.</p>
                         </div>
                     </div>
-
                 </div>
             </div>
             
             <!-- Página: Fluxo de Caixa -->
             <div id="page-caixa" class="page-content hidden">
                 <h1 class="text-3xl font-bold text-gray-900 mb-8">Fluxo de Caixa</h1>
-                
                 <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
                     <h2 class="text-xl font-bold text-gray-800 mb-4">Filtrar Vendas</h2>
                     <form id="filter-sales-form" class="flex flex-col sm:flex-row sm:items-end gap-4">
@@ -328,7 +314,6 @@
                         </button>
                     </form>
                 </div>
-                
                 <div class="bg-white p-6 rounded-xl shadow-lg">
                     <h2 class="text-xl font-bold text-gray-800 mb-4">Vendas Registadas</h2>
                     <div class="flex items-center mb-4">
@@ -336,7 +321,6 @@
                         <span id="sales-total" class="text-2xl font-bold text-green-700 ml-2">R$ 0,00</span>
                         <div id="sales-loader" class="loader ml-4 hidden"></div>
                     </div>
-                    
                     <div class="overflow-x-auto">
                         <table class="w-full min-w-max text-left">
                             <thead class="border-b bg-gray-50">
@@ -348,19 +332,16 @@
                                 </tr>
                             </thead>
                             <tbody id="sales-list">
-                                <!-- Lista de vendas -->
                                 <tr><td colspan="4" class="p-3 text-center text-gray-500">Nenhuma venda encontrada para este período.</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-
             </div>
 
             <!-- Página: Configurações -->
             <div id="page-config" class="page-content hidden">
                 <h1 class="text-3xl font-bold text-gray-900 mb-8">Configurações</h1>
-
                 <div class="bg-white p-6 rounded-xl shadow-lg max-w-2xl">
                     <h2 class="text-xl font-bold text-gray-800 mb-4">Logo da Empresa</h2>
                     <form id="config-form">
@@ -376,28 +357,24 @@
                             <span id="config-success" class="text-green-600 font-medium hidden">Guardado!</span>
                         </div>
                     </form>
-
                      <h2 class="text-xl font-bold text-gray-800 mt-10 mb-4">Pré-visualização da Logo</h2>
                      <div class="border rounded-lg p-4 bg-gray-50">
                          <img id="logo-preview" src="https://placehold.co/150x50/f9fafb/6b7280?text=Sem+Logo" alt="Pré-visualização" class="h-12 w-auto" onerror="this.src='https://placehold.co/150x50/f9fafb/6b7280?text=Erro+URL';">
                      </div>
                 </div>
             </div>
-            
         </main>
     </div>
 
     <!-- Modal: Detalhes do Pedido -->
     <div id="order-details-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4 hidden modal-open">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col transform transition-all">
-            <!-- Cabeçalho -->
             <div class="flex justify-between items-center p-5 border-b">
                 <h3 class="text-2xl font-bold text-gray-800">Detalhes do Pedido</h3>
                 <button id="close-order-details" class="p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600 focus:outline-none">
                     <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>
-            <!-- Conteúdo -->
             <div class="p-6 overflow-y-auto">
                 <div class="grid grid-cols-2 gap-x-4 gap-y-2 mb-6">
                     <div>
@@ -417,52 +394,45 @@
                         <span id="detail-order-id" class="text-sm font-mono text-gray-900">...</span>
                     </div>
                 </div>
-
-                <!-- Itens -->
                 <h4 class="text-lg font-bold text-gray-800 mb-3">Itens do Pedido</h4>
                 <div id="detail-items-list" class="space-y-2 border-t border-b divide-y">
                     <!-- Itens aqui -->
                 </div>
-
-                <!-- Total -->
                 <div class="flex justify-between items-center mt-4 pt-4 border-t">
                     <span class="text-xl font-bold text-gray-600">Total:</span>
                     <span id="detail-total" class="text-2xl font-bold text-gray-900">R$ 0,00</span>
                 </div>
-
-                <!-- Observações -->
                 <div id="detail-notes-container" class="mt-4 pt-4 border-t hidden">
                     <h4 class="text-lg font-bold text-gray-800 mb-2">Observações</h4>
                     <p id="detail-notes" class="text-gray-700 bg-yellow-50 p-3 rounded-lg"></p>
                 </div>
             </div>
-            <!-- Rodapé (Ações) -->
             <div class="p-5 border-t bg-gray-50 rounded-b-xl flex justify-end space-x-3">
-                <button id="detail-action-reopen" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Reabrir Pedido</d>
-                <button id="detail-action-cancel" class="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700">Cancelar</d>
-                <button id="detail-action-pay" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Marcar como Pago</d>
+                <button id="detail-action-reopen" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Reabrir Pedido</button>
+                <button id="detail-action-cancel" class="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700">Cancelar</button>
+                <button id="detail-action-pay" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Marcar como Pago</button>
             </div>
         </div>
     </div>
-    
+
     <!-- Modal: QR Code da Mesa -->
-    <div id="qrcode-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4 hidden">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm flex flex-col transform transition-all text-center">
-            <!-- Cabeçalho -->
+    <div id="qrcode-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4 hidden modal-open">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm transform transition-all text-center">
             <div class="flex justify-between items-center p-5 border-b">
-                <h3 id="qrcode-modal-title" class="text-2xl font-bold text-gray-800">QR Code da Mesa</h3>
+                <h3 class="text-2xl font-bold text-gray-800">QR Code da Mesa</h3>
                 <button id="close-qrcode-modal" class="p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600 focus:outline-none">
                     <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>
-            <!-- Conteúdo -->
-            <div class="p-6">
-                <div id="qrcode-container" class="flex justify-center items-center w-64 h-64 mx-auto mb-4 bg-gray-100 rounded-lg p-4">
-                    <!-- QR Code será gerado aqui -->
+            <div id="qrcode-print-area" class="p-6">
+                <h4 id="qrcode-table-name" class="text-3xl font-bold text-gray-900 mb-4"></h4>
+                <p class="text-gray-600 mb-4">Aponte a câmara do seu telemóvel para aceder ao cardápio.</p>
+                <div id="qrcode-canvas" class="flex justify-center p-4 border rounded-lg bg-gray-50">
+                    <!-- O QR Code será gerado aqui -->
                 </div>
-                <p class="text-gray-600">Imprima este código e coloque na mesa correspondente.</p>
-                <p id="qrcode-url" class="text-xs text-gray-400 mt-2 break-all"></p>
-                <button id="print-qrcode-btn" class="mt-4 w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+            </div>
+            <div class="p-5 border-t bg-gray-50 rounded-b-xl">
+                <button id="print-qrcode-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
                     Imprimir QR Code
                 </button>
             </div>
@@ -496,7 +466,6 @@
             setLogLevel
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Importar configuração
         let firebaseConfig, restaurantAppId;
         try {
             const configModule = await import('./firebase-config.js');
@@ -511,15 +480,13 @@
             document.getElementById('login-error').classList.remove('hidden');
         }
 
-        // --- Variáveis Globais ---
         let app, auth, db, userId;
         let categoriesCache = [];
         let currentEditingProductId = null;
         let currentModalOrderId = null;
-        let unsubscribeOrders; // Para parar de ouvir os pedidos
-        let isFirebaseReady = false; // Flag para login
+        let unsubscribeOrders;
+        let isFirebaseReady = false; // Flag para o botão de login
 
-        // --- Elementos DOM ---
         const loginScreen = document.getElementById('login-screen');
         const loginForm = document.getElementById('login-form');
         const loginButton = document.getElementById('login-button');
@@ -533,7 +500,6 @@
         const pages = document.querySelectorAll('.page-content');
         const navLinks = document.querySelectorAll('.nav-link');
 
-        // Page Gestão
         const categoryForm = document.getElementById('category-form');
         const categoryNameInput = document.getElementById('category-name');
         const categoriesList = document.getElementById('categories-list');
@@ -548,11 +514,11 @@
         const productIdInput = document.getElementById('product-id');
         const productNameInput = document.getElementById('product-name');
         const productDescInput = document.getElementById('product-description');
+        const productImageUrlInput = document.getElementById('product-image-url'); // CAMPO IMAGEM
         const productPriceInput = document.getElementById('product-price');
         const productCategorySelect = document.getElementById('product-category');
         const productsList = document.getElementById('products-list');
 
-        // Page Pedidos
         const pendingOrdersCol = document.getElementById('pending-orders');
         const paidOrdersCol = document.getElementById('paid-orders');
         const cancelledOrdersCol = document.getElementById('cancelled-orders');
@@ -560,7 +526,6 @@
         const paidCount = document.getElementById('paid-count');
         const cancelledCount = document.getElementById('cancelled-count');
         
-        // Page Caixa
         const filterSalesForm = document.getElementById('filter-sales-form');
         const filterSalesClear = document.getElementById('filter-sales-clear');
         const dateStartInput = document.getElementById('date-start');
@@ -569,14 +534,12 @@
         const salesTotal = document.getElementById('sales-total');
         const salesLoader = document.getElementById('sales-loader');
         
-        // Page Config
         const configForm = document.getElementById('config-form');
         const logoUrlInput = document.getElementById('logo-url');
         const logoPreview = document.getElementById('logo-preview');
         const logoImgHeader = document.getElementById('logo-img');
         const configSuccess = document.getElementById('config-success');
 
-        // Modal Detalhes do Pedido
         const orderDetailsModal = document.getElementById('order-details-modal');
         const closeOrderDetails = document.getElementById('close-order-details');
         const detailTableName = document.getElementById('detail-table-name');
@@ -593,22 +556,15 @@
 
         // Modal QR Code
         const qrcodeModal = document.getElementById('qrcode-modal');
-        const qrcodeModalTitle = document.getElementById('qrcode-modal-title');
-        const qrcodeContainer = document.getElementById('qrcode-container');
-        const qrcodeUrlText = document.getElementById('qrcode-url');
         const closeQrcodeModal = document.getElementById('close-qrcode-modal');
+        const qrcodeCanvas = document.getElementById('qrcode-canvas');
+        const qrcodeTableName = document.getElementById('qrcode-table-name');
         const printQrcodeBtn = document.getElementById('print-qrcode-btn');
 
-
-        // --- Caminhos Firestore ---
         const getCollectionPath = (colName) => `artifacts/${restaurantAppId}/public/data/${colName}`;
 
-        // --- Funções Principais ---
-
-        // 1. Inicializar Firebase
         async function initFirebase() {
             if (!firebaseConfig) {
-                 // Erro já foi tratado na importação
                 loginButtonText.innerText = "Erro de Config.";
                 loginButton.disabled = true;
                 return;
@@ -619,38 +575,30 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
                 setLogLevel('Debug');
-                isFirebaseReady = true; // Firebase está pronto
+                isFirebaseReady = true;
                 
-                // Habilitar o botão de login
                 loginButton.disabled = false;
                 loginButtonText.innerText = "Entrar";
                 
-                // Monitorar estado de autenticação
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
-                        // Usuário está logado
                         userId = user.uid;
                         loginScreen.classList.add('hidden');
                         adminPanel.classList.remove('hidden');
                         adminPanel.classList.add('flex');
                         
-                        // Configurar infos do usuário
                         userEmailDisplay.innerText = user.email || 'Usuário';
-                        // CORREÇÃO: Verificar se user.email existe antes de usar substring
-                        const userInitial = user.email ? user.email.substring(0, 1).toUpperCase() : '?'; 
+                        const userInitial = user.email ? user.email.substring(0, 1).toUpperCase() : '?';
                         document.querySelector('#user-info div:first-child').innerText = userInitial;
                         
-                        // Carregar dados iniciais
                         initApp();
 
                     } else {
-                        // Usuário não está logado
                         userId = null;
                         loginScreen.classList.remove('hidden');
                         adminPanel.classList.add('hidden');
                         adminPanel.classList.remove('flex');
                         
-                        // Parar de ouvir os pedidos se estiver ouvindo
                         if (unsubscribeOrders) {
                             unsubscribeOrders();
                         }
@@ -665,52 +613,40 @@
             }
         }
 
-        // 2. Carregar dados após login
         function initApp() {
-            // Carregar dados da página de gestão
             loadCategories();
             loadTables();
             loadProducts();
             loadConfig();
-            
-            // Iniciar listener da página de pedidos
             listenToOrders();
             
-            // Configurar data padrão do fluxo de caixa
             const today = new Date().toISOString().split('T')[0];
             dateStartInput.value = today;
             dateEndInput.value = today;
         }
 
-        // 3. Navegação
         navLinks.forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 const pageId = link.dataset.page;
                 
-                // Ocultar todas as páginas
                 pages.forEach(page => page.classList.add('hidden'));
-                
-                // Mostrar a página clicada
                 document.getElementById(pageId).classList.remove('hidden');
                 
-                // Atualizar estado ativo do link
                 navLinks.forEach(l => l.classList.remove('bg-gray-900', 'text-white'));
                 link.classList.add('bg-gray-900', 'text-white');
 
-                // Recarregar dados do fluxo de caixa se for a página
                 if (pageId === 'page-caixa') {
                     loadFilteredSales();
                 }
             });
         });
 
-        // 4. Login
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             if (!isFirebaseReady) {
-                loginError.innerText = 'Aguarde o Firebase carregar...';
+                loginError.innerText = "Aguarde, a inicializar...";
                 loginError.classList.remove('hidden');
                 return;
             }
@@ -719,45 +655,35 @@
             const password = document.getElementById('password').value;
             loginError.classList.add('hidden');
             
-            // Feedback visual de carregamento no botão
             loginButton.disabled = true;
-            loginButtonText.classList.add('hidden'); // Esconde o texto
-            loginButtonSpinner.classList.remove('hidden'); // Mostra o spinner
+            loginButtonText.innerText = "";
+            loginButtonSpinner.classList.remove('hidden');
             
             try {
                 await signInWithEmailAndPassword(auth, email, password);
-                // O 'onAuthStateChanged' cuidará de mostrar o painel
             } catch (error) {
                 console.error("Erro no login:", error.code);
-                if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+                if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
                     loginError.innerText = 'Email ou senha inválidos.';
-                } else if (error.code === 'auth/user-not-found') {
-                    loginError.innerText = 'Usuário não encontrado.';
                 } else {
                     loginError.innerText = `Erro: ${error.code}`;
                 }
                 loginError.classList.remove('hidden');
             } finally {
-                // Resetar o botão
                 loginButton.disabled = false;
-                loginButtonText.classList.remove('hidden'); // Mostra o texto
-                loginButtonSpinner.classList.add('hidden'); // Esconde o spinner
+                loginButtonText.innerText = "Entrar";
+                loginButtonSpinner.classList.add('hidden');
             }
         });
 
-        // 5. Logout
         logoutButton.addEventListener('click', async () => {
             try {
                 await signOut(auth);
-                // O 'onAuthStateChanged' cuidará de mostrar a tela de login
             } catch (error) {
                 console.error("Erro no logout:", error);
             }
         });
         
-        // --- Funções de Gestão (CRUD) ---
-
-        // CATEGORIAS
         async function loadCategories() {
             const categoriesCol = collection(db, getCollectionPath('categories'));
             onSnapshot(query(categoriesCol), (snapshot) => {
@@ -772,9 +698,8 @@
                 
                 snapshot.forEach(doc => {
                     const category = { id: doc.id, ...doc.data() };
-                    categoriesCache.push(category); // Salvar em cache
+                    categoriesCache.push(category);
                     
-                    // Adicionar à lista de gestão
                     const statusClass = category.active ? 'text-green-600' : 'text-gray-500';
                     const statusText = category.active ? 'Ativo' : 'Inativo';
                     const toggleClass = category.active ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600';
@@ -785,7 +710,7 @@
                     el.innerHTML = `
                         <div>
                             <span class="font-medium text-gray-800">${category.name}</span>
-                            <span class_name="text-xs ml-2 ${statusClass}">(${statusText})</span>
+                            <span class="text-xs ml-2 ${statusClass}">(${statusText})</span>
                         </div>
                         <div class="flex space-x-2">
                             <button data-id="${category.id}" data-active="${!category.active}" class="toggle-category-btn text-white text-xs font-bold py-1 px-2 rounded ${toggleClass}">
@@ -798,11 +723,9 @@
                     `;
                     categoriesList.appendChild(el);
                     
-                    // Adicionar ao select (apenas se ativa)
                     productCategorySelect.innerHTML += `<option value="${category.id}">${category.name} ${category.active ? '' : '(Inativa)'}</option>`;
                 });
                 
-                // Adicionar listeners
                 document.querySelectorAll('.delete-category-btn').forEach(btn => btn.addEventListener('click', deleteCategory));
                 document.querySelectorAll('.toggle-category-btn').forEach(btn => btn.addEventListener('click', toggleCategoryStatus));
             }, (error) => {
@@ -819,9 +742,9 @@
             try {
                 await addDoc(collection(db, getCollectionPath('categories')), {
                     name: name,
-                    active: true // Por padrão, nova categoria é ativa
+                    active: true
                 });
-                categoryNameInput.value = ''; // Limpar campo
+                categoryNameInput.value = '';
             } catch (error) {
                 console.error("Erro ao adicionar categoria: ", error);
             }
@@ -829,7 +752,6 @@
         
         async function deleteCategory(e) {
             const id = e.target.closest('button').dataset.id;
-            // TODO: Adicionar verificação se há produtos usando esta categoria
             try {
                 await deleteDoc(doc(db, getCollectionPath('categories'), id));
             } catch (error) {
@@ -849,7 +771,6 @@
             }
         }
         
-        // MESAS
         async function loadTables() {
             const tablesCol = collection(db, getCollectionPath('tables'));
             onSnapshot(query(tablesCol), (snapshot) => {
@@ -869,36 +790,31 @@
                     const toggleText = table.active ? 'Desativar' : 'Ativar';
 
                     const el = document.createElement('div');
-el.className = "flex justify-between items-center p-2.5 bg-gray-50 rounded-lg";
-el.innerHTML = `
-    <div>
-        <span class="font-medium text-gray-800">${table.name}</span>
-        <span class="text-xs ml-2 ${statusClass}">(${statusText})</span>
-    </div>
-    <div class="flex flex-wrap gap-2 justify-end">
-         <button data-id="${table.id}" data-name="${table.name}" class="qr-code-btn text-white text-xs font-bold py-1 px-2 rounded bg-gray-500 hover:bg-gray-600">
-            QR Code
-        </button>
-         <button data-id="${table.id}" data-active="${!table.active}" class="toggle-table-btn text-white text-xs font-bold py-1 px-2 rounded ${toggleClass}">
-            ${toggleText}
-        </button>
-        <button data-id="${table.id}" class="delete-table-btn text-red-500 hover:text-red-700 text-xs font-bold py-1 px-2 rounded hover:bg-red-100">
-            Excluir
-        </button>
-    </div>
-`;
+                    el.className = "flex justify-between items-center p-2.5 bg-gray-50 rounded-lg";
+                    el.innerHTML = `
+                        <div>
+                            <span class="font-medium text-gray-800">${table.name}</span>
+                            <span class="text-xs ml-2 ${statusClass}">(${statusText})</span>
+                        </div>
+                        <div class="flex space-x-2">
+                            <!-- BOTÃO QR CODE -->
+                            <button data-id="${table.id}" data-name="${table.name}" class="qrcode-table-btn text-white text-xs font-bold py-1 px-2 rounded bg-blue-500 hover:bg-blue-600">
+                                QR Code
+                            </button>
+                            <button data-id="${table.id}" data-active="${!table.active}" class="toggle-table-btn text-white text-xs font-bold py-1 px-2 rounded ${toggleClass}">
+                                ${toggleText}
+                            </button>
+                            <button data-id="${table.id}" class="delete-table-btn text-red-500 hover:text-red-700 text-xs font-bold py-1 px-2 rounded hover:bg-red-100">
+                                Excluir
+                            </button>
+                        </div>
+                    `;
                     tablesList.appendChild(el);
                 });
 
-                // Adicionar listeners
                 document.querySelectorAll('.delete-table-btn').forEach(btn => btn.addEventListener('click', deleteTable));
                 document.querySelectorAll('.toggle-table-btn').forEach(btn => btn.addEventListener('click', toggleTableStatus));
-                // Adicionar listener para QR Code
-                document.querySelectorAll('.qr-code-btn').forEach(btn => btn.addEventListener('click', (e) => {
-                    const id = e.target.dataset.id;
-                    const name = e.target.dataset.name;
-                    showQrCodeModal(id, name);
-                }));
+                document.querySelectorAll('.qrcode-table-btn').forEach(btn => btn.addEventListener('click', showQrCodeModal));
             }, (error) => {
                  console.error("Erro ao carregar mesas:", error);
                  tablesList.innerHTML = '<p class="text-sm text-red-500">Erro ao carregar. Verifique as regras do Firebase.</p>';
@@ -913,9 +829,9 @@ el.innerHTML = `
             try {
                 await addDoc(collection(db, getCollectionPath('tables')), {
                     name: name,
-                    active: true // Por padrão, nova mesa é ativa
+                    active: true
                 });
-                tableNameInput.value = ''; // Limpar campo
+                tableNameInput.value = '';
             } catch (error) {
                 console.error("Erro ao adicionar mesa: ", error);
             }
@@ -942,7 +858,6 @@ el.innerHTML = `
             }
         }
 
-        // PRODUTOS
         async function loadProducts() {
             const productsCol = collection(db, getCollectionPath('products'));
             onSnapshot(query(productsCol), (snapshot) => {
@@ -989,7 +904,6 @@ el.innerHTML = `
                     productsList.appendChild(tr);
                 });
                 
-                // Adicionar listeners
                 document.querySelectorAll('.delete-product-btn').forEach(btn => btn.addEventListener('click', deleteProduct));
                 document.querySelectorAll('.edit-product-btn').forEach(btn => btn.addEventListener('click', editProduct));
                 document.querySelectorAll('.toggle-product-btn').forEach(btn => btn.addEventListener('click', toggleProductStatus));
@@ -1005,23 +919,19 @@ el.innerHTML = `
             const productData = {
                 name: productNameInput.value.trim(),
                 description: productDescInput.value.trim(),
+                imageUrl: productImageUrlInput.value.trim(), // SALVAR IMAGEM
                 price: parseFloat(productPriceInput.value),
                 categoryId: productCategorySelect.value,
-                // 'active' status será tratado abaixo
             };
             
             try {
                 if (currentEditingProductId) {
-                    // Atualizar produto existente
                     const productRef = doc(db, getCollectionPath('products'), currentEditingProductId);
-                    // Manter o status de 'active' que já existia
                     const docSnap = await getDoc(productRef);
                     productData.active = docSnap.exists() ? docSnap.data().active : true; 
-                    
                     await updateDoc(productRef, productData);
                 } else {
-                    // Criar novo produto
-                    productData.active = true; // Novo produto é sempre ativo
+                    productData.active = true;
                     await addDoc(collection(db, getCollectionPath('products')), productData);
                 }
                 resetProductForm();
@@ -1030,9 +940,8 @@ el.innerHTML = `
             }
         });
 
-
         function resetProductForm() {
-            productForm.reset(); // Limpa o formulário
+            productForm.reset();
             currentEditingProductId = null;
             productFormSubmit.innerText = "Guardar Produto";
             productFormCancel.classList.add('hidden');
@@ -1051,13 +960,13 @@ el.innerHTML = `
                     currentEditingProductId = id;
                     productNameInput.value = product.name;
                     productDescInput.value = product.description || '';
+                    productImageUrlInput.value = product.imageUrl || ''; // CARREGAR IMAGEM
                     productPriceInput.value = product.price;
                     productCategorySelect.value = product.categoryId;
                     
                     productFormSubmit.innerText = "Atualizar Produto";
                     productFormCancel.classList.remove('hidden');
                     
-                    // Scroll para o topo do formulário
                     productForm.scrollIntoView({ behavior: 'smooth' });
                 }
             } catch (error) {
@@ -1069,7 +978,7 @@ el.innerHTML = `
             const id = e.target.closest('button').dataset.id;
             try {
                 await deleteDoc(doc(db, getCollectionPath('products'), id));
-                resetProductForm(); // Limpar formulário se o produto excluído era o que estava em edição
+                resetProductForm();
             } catch (error) {
                 console.error("Erro ao excluir produto: ", error);
             }
@@ -1087,7 +996,6 @@ el.innerHTML = `
             }
         }
 
-        // CONFIGURAÇÕES
         async function loadConfig() {
             const configDocRef = doc(db, getCollectionPath('config'), 'main');
             onSnapshot(configDocRef, (docSnap) => {
@@ -1097,7 +1005,6 @@ el.innerHTML = `
                     logoPreview.src = url;
                     logoImgHeader.src = url;
                 } else {
-                    // Resetar para placeholder se não houver logo
                     const placeholder = "https://placehold.co/150x50/1f2937/9ca3af?text=LOGO";
                     logoUrlInput.value = "";
                     logoPreview.src = "https://placehold.co/150x50/f9fafb/6b7280?text=Sem+Logo";
@@ -1121,16 +1028,13 @@ el.innerHTML = `
             }
         });
 
-
-        // --- Funções da Página de Pedidos ---
-
         function listenToOrders() {
             const ordersCol = collection(db, getCollectionPath('orders'));
+            
+            // REMOVIDO FILTRO `where` para evitar necessidade de índice
             const q = query(ordersCol); 
             
-            if (unsubscribeOrders) {
-                unsubscribeOrders(); // Parar listener antigo se existir
-            }
+            if (unsubscribeOrders) unsubscribeOrders();
             
             unsubscribeOrders = onSnapshot(q, (snapshot) => {
                 let pendingOrders = [];
@@ -1140,6 +1044,7 @@ el.innerHTML = `
                 snapshot.forEach(doc => {
                     const order = { id: doc.id, ...doc.data() };
                     
+                    // FILTRO MANUAL NO JS
                     if (order.status === 'pending') {
                         pendingOrders.push(order);
                     } else if (order.status === 'paid') {
@@ -1149,30 +1054,27 @@ el.innerHTML = `
                     }
                 });
 
-                // Ordenar por data (mais recente primeiro)
                 const sortDesc = (a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0);
                 pendingOrders.sort(sortDesc);
                 paidOrders.sort(sortDesc);
                 cancelledOrders.sort(sortDesc);
 
-                // Renderizar colunas
                 renderOrderColumn(pendingOrdersCol, pendingOrders);
                 renderOrderColumn(paidOrdersCol, paidOrders);
                 renderOrderColumn(cancelledOrdersCol, cancelledOrders);
                 
-                // Atualizar contadores
                 pendingCount.innerText = `(${pendingOrders.length})`;
                 paidCount.innerText = `(${paidOrders.length})`;
                 cancelledCount.innerText = `(${cancelledOrders.length})`;
 
             }, (error) => {
-                console.error("Erro ao ouvir pedidos (verifique regras e índices do Firestore):", error);
-                pendingOrdersCol.innerHTML = '<p class="text-red-500 p-4">Erro ao carregar pedidos. Verifique o console (F12).</p>';
+                console.error("Erro ao ouvir pedidos (verifique regras):", error);
+                pendingOrdersCol.innerHTML = '<p class="text-red-500 p-4">Erro ao carregar pedidos. Verifique as regras.</p>';
             });
         }
         
         function renderOrderColumn(columnElement, orders) {
-            columnElement.innerHTML = ''; // Limpar coluna
+            columnElement.innerHTML = '';
             if (orders.length === 0) {
                 let message = "Nenhum pedido pendente.";
                 if (columnElement.id === 'paid-orders') message = "Nenhum pedido pago.";
@@ -1186,7 +1088,6 @@ el.innerHTML = `
                 columnElement.appendChild(card);
             });
             
-            // Adicionar listeners aos botões
             columnElement.querySelectorAll('.view-details-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const id = e.target.closest('.order-card').dataset.id;
@@ -1231,13 +1132,11 @@ el.innerHTML = `
                 
                 const order = docSnap.data();
                 
-                // Preencher dados básicos
                 detailTableName.innerText = order.tableName;
                 detailOrderId.innerText = orderId.substring(0, 10) + '...';
                 detailTime.innerText = order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString('pt-BR') : '...';
                 detailTotal.innerText = `R$ ${parseFloat(order.total || 0).toFixed(2).replace('.', ',')}`;
 
-                // Preencher Status
                 let statusText = 'Pendente';
                 let statusClass = 'text-yellow-600';
                 btnPay.classList.remove('hidden');
@@ -1260,7 +1159,6 @@ el.innerHTML = `
                 detailStatus.className = `text-lg font-bold ${statusClass}`;
                 detailStatus.innerText = statusText;
 
-                // Preencher Itens
                 detailItemsList.innerHTML = '';
                 order.items.forEach(item => {
                     detailItemsList.innerHTML += `
@@ -1274,7 +1172,6 @@ el.innerHTML = `
                     `;
                 });
                 
-                // Preencher Observações
                 if (order.notes && order.notes.trim() !== "") {
                     detailNotes.innerText = order.notes;
                     detailNotesContainer.classList.remove('hidden');
@@ -1282,7 +1179,6 @@ el.innerHTML = `
                     detailNotesContainer.classList.add('hidden');
                 }
 
-                // Mostrar modal
                 orderDetailsModal.classList.remove('hidden');
                 document.body.classList.add('modal-open');
 
@@ -1299,53 +1195,12 @@ el.innerHTML = `
         
         closeOrderDetails.addEventListener('click', closeOrderModal);
 
-        // Funções do Modal QR Code
-        function showQrCodeModal(tableId, tableName) {
-            // Limpa o container
-            qrcodeContainer.innerHTML = '';
-            
-            // Constrói a URL de destino
-            // 1. Pega a URL atual (ex: http://localhost:5500/admin.html)
-            // 2. Remove o "admin.html" e qualquer hash (#)
-            const baseUrl = window.location.href.replace('admin.html', '').replace(/\#.*$/, '');
-            // 3. Cria a URL do cardápio com os parâmetros
-            const targetUrl = `${baseUrl}cardapio.html?table=${tableId}&tableName=${encodeURIComponent(tableName)}`;
-            
-            // Atualiza o texto do modal
-            qrcodeModalTitle.innerText = `QR Code - ${tableName}`;
-            qrcodeUrlText.innerText = targetUrl; // Mostra a URL gerada
-
-            // Gera o QR Code
-            new QRCode(qrcodeContainer, {
-                text: targetUrl,
-                width: 256,
-                height: 256,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
-            });
-
-            // Mostra o modal
-            qrcodeModal.classList.remove('hidden');
-            document.body.classList.add('modal-open');
-        }
-
-        function closeQrCodeModal() {
-            qrcodeModal.classList.add('hidden');
-            document.body.classList.remove('modal-open');
-        }
-
-        closeQrcodeModal.addEventListener('click', closeQrCodeModal);
-        printQrcodeBtn.addEventListener('click', () => {
-             window.print();
-        });
-        
         async function updateOrderStatus(newStatus) {
             if (!currentModalOrderId) return;
             try {
                 const orderRef = doc(db, getCollectionPath('orders'), currentModalOrderId);
                 await updateDoc(orderRef, { status: newStatus });
-                closeOrderModal(); // Fechar modal após sucesso
+                closeOrderModal();
             } catch (error) {
                 console.error(`Erro ao atualizar status para ${newStatus}:`, error);
             }
@@ -1354,9 +1209,6 @@ el.innerHTML = `
         btnPay.addEventListener('click', () => updateOrderStatus('paid'));
         btnCancel.addEventListener('click', () => updateOrderStatus('cancelled'));
         btnReopen.addEventListener('click', () => updateOrderStatus('pending'));
-        
-
-        // --- Funções da Página Fluxo de Caixa ---
         
         filterSalesForm.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -1376,17 +1228,12 @@ el.innerHTML = `
             const end = dateEndInput.value;
             
             if (!start || !end) {
-                // Não é um erro, apenas não há datas
                 salesList.innerHTML = '<tr><td colspan="4" class="p-3 text-center text-gray-500">Selecione data de início e fim.</td></tr>';
                 return;
             }
             
-            // O Firebase precisa do Timestamp
-            // Para 'start', pegamos o início do dia
             const startDate = new Date(start + "T00:00:00");
             const startTimestamp = Timestamp.fromDate(startDate);
-            
-            // Para 'end', pegamos o fim do dia
             const endDate = new Date(end + "T23:59:59");
             const endTimestamp = Timestamp.fromDate(endDate);
             
@@ -1397,7 +1244,6 @@ el.innerHTML = `
             try {
                 const ordersCol = collection(db, getCollectionPath('orders'));
                 // Esta consulta é complexa e EXIGE um índice
-                // O Firebase dará um erro no console com um link para criar
                 const q = query(ordersCol, 
                     where("status", "==", "paid"),
                     where("createdAt", ">=", startTimestamp),
@@ -1408,6 +1254,7 @@ el.innerHTML = `
                 
                 if (querySnap.empty) {
                     salesList.innerHTML = '<tr><td colspan="4" class="p-3 text-center text-gray-500">Nenhuma venda encontrada para este período.</td></tr>';
+                    salesTotal.innerText = "R$ 0,00";
                     return;
                 }
                 
@@ -1416,7 +1263,6 @@ el.innerHTML = `
                     salesData.push(doc.data());
                 });
 
-                // Ordenar por data (mais recente primeiro) no cliente
                 salesData.sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate());
 
                 salesList.innerHTML = '';
@@ -1442,17 +1288,51 @@ el.innerHTML = `
             } catch (error) {
                 console.error("Erro ao filtrar vendas:", error);
                 salesList.innerHTML = `<tr><td colspan="4" class="p-3 text-center text-red-500">Erro ao carregar vendas. Verifique o console (F12) para criar o índice necessário no Firebase.</td></tr>`;
-                // O Firebase logará um link para criar o índice.
-                // Ex: "The query requires an index. You can create it here: https://console.firebase.google.com/..."
             } finally {
                 salesLoader.classList.add('hidden');
             }
         }
         
-        // --- Inicialização ---
-        initFirebase();
+        // --- Funções do QR Code ---
+        function showQrCodeModal(e) {
+            const tableId = e.target.dataset.id;
+            const tableName = e.target.dataset.name;
+            
+            // Gerar a URL
+            // Esta é a URL para o seu cardápio no GitHub Pages ou servidor local
+            // Ela deve apontar para o `cardapio.html`
+            const cardapioUrl = window.location.href.replace('admin.html', 'cardapio.html').replace('index.html', 'cardapio.html');
+            const urlWithParams = `${cardapioUrl}?tableId=${tableId}`;
+            
+            qrcodeTableName.innerText = tableName;
+            qrcodeCanvas.innerHTML = ''; // Limpar QR code anterior
+            
+            try {
+                // Gerar o QR Code
+                const qr = qrcode(0, 'L'); // tipo 0 (auto), correção 'L' (baixa)
+                qr.addData(urlWithParams);
+                qr.make();
+                qrcodeCanvas.innerHTML = qr.createImgTag(6, 4); // (tamanho do módulo, margem)
+                qrcodeCanvas.querySelector('img').className = "w-64 h-64";
+                
+                qrcodeModal.classList.remove('hidden');
+                document.body.classList.add('modal-open');
+            } catch (err) {
+                console.error("Erro ao gerar QR Code:", err);
+                qrcodeCanvas.innerHTML = "<p class='text-red-500'>Erro ao gerar QR Code.</p>";
+            }
+        }
 
+        closeQrcodeModal.addEventListener('click', () => {
+            qrcodeModal.classList.add('hidden');
+            document.body.classList.remove('modal-open');
+        });
+
+        printQrcodeBtn.addEventListener('click', () => {
+            window.print();
+        });
+
+        initFirebase();
     </script>
 </body>
 </html>
-
