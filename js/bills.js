@@ -112,15 +112,24 @@ function setupListeners() {
   });
 
   // Status filter
-  let activeStatus = '';
   document.querySelectorAll('#status-filter-bar .status-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      activeStatus = btn.dataset.status;
-      document.querySelectorAll('#status-filter-bar .status-btn').forEach(b => b.classList.remove('active','active-paid','active-pending','active-overdue','active-cancelled'));
-      btn.classList.add('active', activeStatus ? `active-${activeStatus}` : '');
-      filterBills(activeStatus);
+      activeFilter = btn.dataset.status; // usa a variável de módulo
+      document.querySelectorAll('#status-filter-bar .status-btn').forEach(b => {
+        b.classList.remove('active', 'active-paid', 'active-pending', 'active-overdue', 'active-cancelled');
+      });
+      if (activeFilter) {
+        btn.classList.add('active', `active-${activeFilter}`);
+      } else {
+        btn.classList.add('active'); // botão "Todos"
+      }
+      filterBills(activeFilter);
     });
   });
+
+  // Marca "Todos" como ativo por padrão
+  const todosBtn = document.querySelector('#status-filter-bar .status-btn[data-status=""]');
+  if (todosBtn) todosBtn.classList.add('active');
 
   document.getElementById('btn-dismiss-rollover')?.addEventListener('click', () => {
     document.getElementById('rollover-banner').style.display = 'none';

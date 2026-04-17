@@ -880,6 +880,7 @@ small { font-size: 0.8rem; }
   cursor: pointer;
 }
 .status-btn:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+.status-btn.active { border-color: var(--accent); color: var(--accent-hover); background: var(--accent-light); }
 .status-btn.active-paid { background: var(--success-light); border-color: var(--success); color: var(--success); }
 .status-btn.active-pending { background: var(--warning-light); border-color: var(--warning); color: var(--warning); }
 .status-btn.active-overdue { background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
