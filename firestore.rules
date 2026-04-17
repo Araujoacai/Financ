@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ════════════════════════════════════════════════════════
+    // REGRA GLOBAL: Qualquer usuário autenticado (via Google)
+    // pode ler e escrever em TODOS os documentos.
+    //
+    // Isso é intencional para uso colaborativo/familiar.
+    // Para restringir por usuário no futuro, substitua por:
+    //   allow read, write: if request.auth.uid == resource.data.createdBy;
+    // ════════════════════════════════════════════════════════
+
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

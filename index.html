@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Financie — Controle financeiro pessoal inteligente. Gerencie seus gastos, receitas e investimentos em um só lugar.">
+  <title>Financie — Controle Financeiro</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+</head>
+<body>
+  <div class="login-page">
+    <!-- Background orbs -->
+    <div class="login-bg-orb login-bg-orb-1"></div>
+    <div class="login-bg-orb login-bg-orb-2"></div>
+
+    <div class="login-box">
+      <div class="login-logo">💰</div>
+      <h1 class="login-title">Financie</h1>
+      <p class="login-subtitle">Seu controle financeiro pessoal inteligente</p>
+
+      <!-- Feature list -->
+      <div class="login-features">
+        <div class="login-feature">
+          <div class="login-feature-icon" style="background: rgba(16,185,129,0.15); color: #10B981">📊</div>
+          <span>Dashboard com gráficos e KPIs em tempo real</span>
+        </div>
+        <div class="login-feature">
+          <div class="login-feature-icon" style="background: rgba(245,158,11,0.15); color: #F59E0B">🔔</div>
+          <span>Alertas de vencimentos e contas em atraso</span>
+        </div>
+        <div class="login-feature">
+          <div class="login-feature-icon" style="background: rgba(99,102,241,0.15); color: #818CF8">🔄</div>
+          <span>Contas recorrentes e rollover automático</span>
+        </div>
+        <div class="login-feature">
+          <div class="login-feature-icon" style="background: rgba(139,92,246,0.15); color: #A78BFA">🏷️</div>
+          <span>Categorias com orçamento e controle de gastos</span>
+        </div>
+      </div>
+
+      <!-- Google Sign In -->
+      <button class="btn-google" id="btn-google-login">
+        <img src="https://www.google.com/favicon.ico" alt="Google">
+        Entrar com Google
+      </button>
+
+      <!-- Loading state -->
+      <div class="login-loading" id="login-loading">
+        <div class="spinner"></div>
+        <span>Autenticando...</span>
+      </div>
+
+      <p id="login-error" style="color: var(--danger); font-size: 0.85rem; margin-top: 16px; display: none;"></p>
+
+      <p class="login-footer">
+        Seus dados ficam seguros no Firebase.<br>
+        Acesse de qualquer dispositivo com sua conta Google.
+      </p>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script type="module">
+    import { signInWithGoogle, onAuthChange } from './js/auth.js';
+    import { showToast } from './js/utils.js';
+
+    // If already logged in, redirect to app
+    onAuthChange(user => {
+      if (user) {
+        window.location.href = 'app.html';
+      }
+    });
+
+    const btn = document.getElementById('btn-google-login');
+    const loading = document.getElementById('login-loading');
+    const errEl = document.getElementById('login-error');
+
+    btn.addEventListener('click', async () => {
+      btn.style.display = 'none';
+      loading.classList.add('visible');
+      errEl.style.display = 'none';
+      try {
+        await signInWithGoogle();
+        // onAuthChange will handle redirect
+      } catch (err) {
+        btn.style.display = 'flex';
+        loading.classList.remove('visible');
+        errEl.textContent = 'Erro ao autenticar. Tente novamente.';
+        errEl.style.display = 'block';
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Financie — Painel de controle financeiro">
+  <title>Financie — Painel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Auth guard overlay -->
+<div id="auth-loading" style="position:fixed;inset:0;background:var(--bg-base);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:16px;">
+  <div style="font-size:2.5rem">💰</div>
+  <div class="spinner" style="width:32px;height:32px;border-width:3px"></div>
+</div>
+
+<div id="app-layout" style="display:none">
+
+  <!-- ══════════════════════ SIDEBAR ══════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">💰</div>
+      <span class="sidebar-logo-text">Financie</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Visão Geral</span>
+      <div class="nav-item active" data-page="dashboard" id="nav-dashboard">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </div>
+
+      <span class="nav-section-label">Financeiro</span>
+      <div class="nav-item" data-page="transactions" id="nav-transactions">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Transações
+      </div>
+      <div class="nav-item" data-page="bills" id="nav-bills">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Contas a Pagar
+        <span class="nav-badge" id="bills-badge" style="display:none">0</span>
+      </div>
+      <div class="nav-item" data-page="recurring" id="nav-recurring">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        Recorrências
+      </div>
+
+      <span class="nav-section-label">Gestão</span>
+      <div class="nav-item" data-page="categories" id="nav-categories">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        Categorias
+      </div>
+      <div class="nav-item" data-page="accounts" id="nav-accounts">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        Contas/Carteiras
+      </div>
+      <div class="nav-item" data-page="settings" id="nav-settings">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Configurações
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-card" id="user-card">
+        <div id="user-avatar-wrapper">
+          <div class="user-avatar-placeholder" id="user-initials">?</div>
+        </div>
+        <div class="user-info">
+          <div class="user-name" id="user-display-name">Carregando...</div>
+          <div class="user-email" id="user-email">...</div>
+        </div>
+        <button class="btn-icon" id="btn-signout" title="Sair" style="background:transparent;border:none;padding:6px">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══════════════════════ MAIN ══════════════════════ -->
+  <div class="main-content">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <!-- Mobile menu toggle -->
+        <button class="btn-icon" id="sidebar-toggle" style="display:none" aria-label="Menu">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <span class="topbar-title" id="topbar-title">Dashboard</span>
+      </div>
+      <div class="topbar-actions">
+        <span id="topbar-date" style="font-size:0.82rem;color:var(--text-muted)"></span>
+        <button class="btn btn-primary btn-sm" id="btn-add-main" style="display:none">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nova Transação
+        </button>
+      </div>
+    </header>
+
+    <!-- Alert Banner -->
+    <div class="alert-banner" id="alert-banner">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span id="alert-banner-text"></span>
+      <button style="margin-left:auto;background:none;border:none;color:inherit;cursor:pointer;font-size:1.1rem" onclick="document.getElementById('alert-banner').classList.remove('visible','danger')">✕</button>
+    </div>
+
+    <!-- Page Views -->
+    <main>
+      <div id="view-dashboard" class="page-content page-view"></div>
+      <div id="view-transactions" class="page-content page-view" style="display:none"></div>
+      <div id="view-bills" class="page-content page-view" style="display:none"></div>
+      <div id="view-recurring" class="page-content page-view" style="display:none"></div>
+      <div id="view-categories" class="page-content page-view" style="display:none"></div>
+      <div id="view-accounts" class="page-content page-view" style="display:none"></div>
+      <div id="view-settings" class="page-content page-view" style="display:none"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- ══════════ CONFIRM MODAL ══════════ -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title" id="confirm-title">Confirmar</h3>
+    </div>
+    <p id="confirm-message" style="color:var(--text-secondary);font-size:0.9rem"></p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="confirm-cancel">Cancelar</button>
+      <button class="btn btn-danger" id="confirm-ok">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ TRANSACTION MODAL ══════════ -->
+<div class="modal-overlay" id="transaction-modal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box" style="max-width:580px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="transaction-modal-title">Nova Transação</h3>
+      <button class="modal-close" id="transaction-modal-close">✕</button>
+    </div>
+    <form id="transaction-form">
+      <!-- Type tabs -->
+      <div class="tab-bar" style="margin-bottom:20px" id="type-tabs">
+        <button type="button" class="tab-btn active" data-type="expense" id="tab-expense">💸 Despesa</button>
+        <button type="button" class="tab-btn" data-type="income" id="tab-income">💰 Receita</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Descrição *</label>
+          <input type="text" class="form-input" id="t-description" placeholder="Ex: Supermercado" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor (R$) *</label>
+          <input type="number" class="form-input" id="t-amount" placeholder="0,00" step="0.01" min="0.01" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Categoria</label>
+          <select class="form-select" id="t-category">
+            <option value="">— Selecionar —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conta</label>
+          <select class="form-select" id="t-account">
+            <option value="">— Selecionar —</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Data *</label>
+          <input type="date" class="form-input" id="t-date" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vencimento</label>
+          <input type="date" class="form-input" id="t-due-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-select" id="t-status">
+            <option value="pending">Pendente</option>
+            <option value="paid">Pago</option>
+            <option value="overdue">Atrasado</option>
+            <option value="cancelled">Cancelado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Pagamento</label>
+          <input type="date" class="form-input" id="t-paid-date">
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:4px">
+        <label class="form-label">Observações</label>
+        <textarea class="form-textarea" id="t-notes" placeholder="Opcional..."></textarea>
+      </div>
+      <input type="hidden" id="t-id">
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="transaction-modal-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="transaction-modal-save">
+          <span id="t-save-text">Salvar</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════ CATEGORY MODAL ══════════ -->
+<div class="modal-overlay" id="category-modal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="category-modal-title">Nova Categoria</h3>
+      <button class="modal-close" id="category-modal-close">✕</button>
+    </div>
+    <form id="category-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nome *</label>
+          <input type="text" class="form-input" id="c-name" placeholder="Ex: Alimentação" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Emoji/Ícone</label>
+          <input type="text" class="form-input" id="c-icon" placeholder="🛒" maxlength="4">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select class="form-select" id="c-type">
+            <option value="expense">Despesa</option>
+            <option value="income">Receita</option>
+            <option value="both">Ambos</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cor</label>
+          <input type="color" class="form-input" id="c-color" value="#6366F1" style="height:42px;padding:4px">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Orçamento Mensal (R$)</label>
+        <input type="number" class="form-input" id="c-budget" placeholder="0 = sem limite" step="1" min="0">
+      </div>
+      <input type="hidden" id="c-id">
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="category-modal-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════ ACCOUNT MODAL ══════════ -->
+<div class="modal-overlay" id="account-modal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="account-modal-title">Nova Conta</h3>
+      <button class="modal-close" id="account-modal-close">✕</button>
+    </div>
+    <form id="account-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nome *</label>
+          <input type="text" class="form-input" id="a-name" placeholder="Ex: Nubank" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Emoji/Ícone</label>
+          <input type="text" class="form-input" id="a-icon" placeholder="🏦" maxlength="4">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select class="form-select" id="a-type">
+            <option value="checking">Conta Corrente</option>
+            <option value="savings">Poupança</option>
+            <option value="credit">Cartão de Crédito</option>
+            <option value="cash">Dinheiro</option>
+            <option value="investment">Investimento</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cor</label>
+          <input type="color" class="form-input" id="a-color" value="#6366F1" style="height:42px;padding:4px">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Saldo Inicial (R$)</label>
+          <input type="number" class="form-input" id="a-balance" placeholder="0,00" step="0.01">
+        </div>
+        <div class="form-group" style="justify-content:flex-end;padding-top:24px">
+          <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="a-include-total" checked>
+            Incluir no total
+          </label>
+        </div>
+      </div>
+      <input type="hidden" id="a-id">
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="account-modal-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════ RECURRING MODAL ══════════ -->
+<div class="modal-overlay" id="recurring-modal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-header">
+      <h3 class="modal-title" id="recurring-modal-title">Nova Recorrência</h3>
+      <button class="modal-close" id="recurring-modal-close">✕</button>
+    </div>
+    <form id="recurring-form">
+      <div class="tab-bar" style="margin-bottom:20px" id="recurring-type-tabs">
+        <button type="button" class="tab-btn active" data-type="expense" id="rtab-expense">💸 Despesa</button>
+        <button type="button" class="tab-btn" data-type="income" id="rtab-income">💰 Receita</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Descrição *</label>
+          <input type="text" class="form-input" id="r-description" placeholder="Ex: Spotify" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor (R$) *</label>
+          <input type="number" class="form-input" id="r-amount" placeholder="0,00" step="0.01" min="0.01" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Categoria</label>
+          <select class="form-select" id="r-category">
+            <option value="">— Selecionar —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conta</label>
+          <select class="form-select" id="r-account">
+            <option value="">— Selecionar —</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Dia do Vencimento *</label>
+          <input type="number" class="form-input" id="r-day" placeholder="1-28" min="1" max="28" required>
+        </div>
+        <div class="form-group" style="justify-content:flex-end;padding-top:24px">
+          <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="r-active" checked>
+            Ativa
+          </label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Observações</label>
+        <textarea class="form-textarea" id="r-notes" placeholder="Opcional..." style="min-height:60px"></textarea>
+      </div>
+      <input type="hidden" id="r-id">
+      <input type="hidden" id="r-type-val" value="expense">
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="recurring-modal-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════ APP JS ══════════ -->
+<script type="module" src="js/app.js"></script>
+
+</body>
+</html>
