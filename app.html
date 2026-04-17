@@ -2,11 +2,18 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="description" content="Financie — Painel de controle financeiro">
+  <meta name="theme-color" content="#6366F1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Financie">
   <title>Financie — Painel</title>
+  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/main.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+  <link rel="icon" href="icon-512.png">
+  <link rel="apple-touch-icon" href="icon-512.png">
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
@@ -123,6 +130,30 @@
 
 <!-- Toast Container -->
 <div id="toast-container"></div>
+
+<!-- ========== BOTTOM NAV (mobile) ========== -->
+<nav class="bottom-nav" id="bottom-nav" aria-label="Navegação">
+  <button class="bottom-nav-item active" data-page="dashboard" id="bnav-dashboard">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span>Painel</span>
+  </button>
+  <button class="bottom-nav-item" data-page="transactions" id="bnav-transactions">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    <span>Operações</span>
+  </button>
+  <button class="bottom-nav-item bottom-nav-fab" id="bnav-add" aria-label="Nova Transação">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="22" height="22"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+  <button class="bottom-nav-item" data-page="bills" id="bnav-bills">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span>Contas</span>
+    <span class="bnav-badge" id="bnav-bills-badge" style="display:none">0</span>
+  </button>
+  <button class="bottom-nav-item" data-page="settings" id="bnav-settings">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span>Config</span>
+  </button>
+</nav>
 
 <!-- ══════════ CONFIRM MODAL ══════════ -->
 <div class="modal-overlay" id="confirm-modal">
@@ -382,8 +413,77 @@
   </div>
 </div>
 
-<!-- ══════════ APP JS ══════════ -->
+<!-- ======= APP JS ======= -->
 <script type="module" src="js/app.js"></script>
+
+<!-- PWA Service Worker -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('[PWA] SW registered:', reg.scope))
+        .catch(err => console.warn('[PWA] SW error:', err));
+    });
+  }
+
+  // Bottom nav sync with sidebar nav
+  document.addEventListener('DOMContentLoaded', () => {
+    const bnavItems = document.querySelectorAll('.bottom-nav-item[data-page]');
+    const sidebarItems = document.querySelectorAll('.nav-item[data-page]');
+
+    function syncBottomNav(page) {
+      bnavItems.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.page === page);
+      });
+    }
+
+    // Click on bottom nav triggers sidebar nav click
+    bnavItems.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.page;
+        const sidebarBtn = document.querySelector(`.nav-item[data-page="${target}"]`);
+        if (sidebarBtn) sidebarBtn.click();
+        syncBottomNav(target);
+      });
+    });
+
+    // FAB center button = Nova Transacao
+    const bnavFab = document.getElementById('bnav-add');
+    if (bnavFab) {
+      bnavFab.addEventListener('click', () => {
+        const mainBtn = document.getElementById('btn-add-main');
+        if (mainBtn && mainBtn.style.display !== 'none') {
+          mainBtn.click();
+        } else {
+          // Navigate to transactions then trigger add
+          const transBtn = document.querySelector('.nav-item[data-page="transactions"]');
+          if (transBtn) transBtn.click();
+          setTimeout(() => {
+            const addBtn = document.getElementById('btn-add-main');
+            if (addBtn) addBtn.click();
+          }, 300);
+        }
+      });
+    }
+
+    // Mirror sidebar active state to bottom nav
+    const observer = new MutationObserver(() => {
+      const active = document.querySelector('.nav-item.active');
+      if (active) syncBottomNav(active.dataset.page);
+    });
+    sidebarItems.forEach(item => observer.observe(item, { attributes: true }));
+
+    // Sync bills badge
+    const sidebarBadge = document.getElementById('bills-badge');
+    const bnavBadge = document.getElementById('bnav-bills-badge');
+    if (sidebarBadge && bnavBadge) {
+      new MutationObserver(() => {
+        bnavBadge.textContent = sidebarBadge.textContent;
+        bnavBadge.style.display = sidebarBadge.style.display;
+      }).observe(sidebarBadge, { childList: true, attributes: true });
+    }
+  });
+</script>
 
 </body>
 </html>
