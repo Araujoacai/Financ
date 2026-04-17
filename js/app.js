@@ -193,33 +193,48 @@ async function checkAlertsBadge() {
 }
 
 function setupSidebar() {
-  // Mobile hamburger
   const toggleBtn = document.getElementById('sidebar-toggle');
   const sidebar = document.getElementById('sidebar');
+
+  // Create overlay element for mobile
+  const overlay = document.createElement('div');
+  overlay.className = 'sidebar-overlay';
+  overlay.style.display = 'none';
+  document.body.appendChild(overlay);
+
+  function openSidebar() {
+    sidebar?.classList.add('mobile-open');
+    overlay.style.display = 'block';
+  }
+  function closeSidebar() {
+    sidebar?.classList.remove('mobile-open');
+    overlay.style.display = 'none';
+  }
 
   if (window.innerWidth <= 900 && toggleBtn) {
     toggleBtn.style.display = 'flex';
   }
 
   toggleBtn?.addEventListener('click', () => {
-    sidebar?.classList.toggle('mobile-open');
+    sidebar?.classList.contains('mobile-open') ? closeSidebar() : openSidebar();
   });
+
+  overlay.addEventListener('click', closeSidebar);
 
   window.addEventListener('resize', () => {
     if (window.innerWidth > 900) {
       toggleBtn && (toggleBtn.style.display = 'none');
-      sidebar?.classList.remove('mobile-open');
+      closeSidebar();
     } else {
       toggleBtn && (toggleBtn.style.display = 'flex');
     }
   });
 
-  // Close sidebar on outside click (mobile)
-  document.addEventListener('click', e => {
-    if (window.innerWidth > 900) return;
-    if (!sidebar?.contains(e.target) && !toggleBtn?.contains(e.target)) {
-      sidebar?.classList.remove('mobile-open');
-    }
+  // Close sidebar when nav item is clicked on mobile
+  document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 900) closeSidebar();
+    });
   });
 }
 

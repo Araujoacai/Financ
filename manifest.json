@@ -2,9 +2,9 @@
   "name": "Financie — Controle Financeiro",
   "short_name": "Financie",
   "description": "Controle financeiro pessoal inteligente com dashboard, alertas e recorrências.",
-  "start_url": "/controle financeiro/index.html",
-  "id": "/controle financeiro/",
-  "scope": "/controle financeiro/",
+  "start_url": "./index.html",
+  "id": "./",
+  "scope": "./",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "portrait-primary",
@@ -26,20 +26,19 @@
       "purpose": "any maskable"
     }
   ],
-  "screenshots": [],
   "shortcuts": [
     {
       "name": "Nova Transação",
       "short_name": "Transação",
       "description": "Adicionar nova transação",
-      "url": "/controle financeiro/app.html#transactions",
+      "url": "./app.html",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "Ver dashboard financeiro",
-      "url": "/controle financeiro/app.html#dashboard",
+      "url": "./app.html",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]

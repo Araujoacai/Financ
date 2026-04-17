@@ -1026,51 +1026,132 @@ small { font-size: 0.8rem; }
   .dash-bottom { grid-template-columns: 1fr; }
 }
 
+/* ── Tablet / small screen ── */
 @media (max-width: 900px) {
-  .sidebar { width: 0; overflow: hidden; }
-  .sidebar.mobile-open { width: var(--sidebar-w); box-shadow: var(--shadow-lg); }
+  .sidebar { width: 0; overflow: hidden; transform: translateX(-100%); }
+  .sidebar.mobile-open {
+    width: var(--sidebar-w);
+    transform: translateX(0);
+    box-shadow: var(--shadow-lg);
+    z-index: 500;
+  }
   .main-content { margin-left: 0; }
   .page-content { padding: 20px 16px; }
   .topbar { padding: 0 16px; }
   .form-row, .form-row-3 { grid-template-columns: 1fr; }
   #sidebar-toggle { display: flex !important; }
+
+  /* Overlay behind open sidebar */
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 499;
+    backdrop-filter: blur(2px);
+  }
 }
 
+/* ── Mobile ── */
 @media (max-width: 600px) {
-  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  /* Prevent horizontal overflow */
+  body { overflow-x: hidden; }
+
+  /* KPI 2×2 grid */
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi-card { padding: 14px 12px; }
+  .kpi-value { font-size: 1.15rem; }
+  .kpi-label { font-size: 0.7rem; }
+  .kpi-icon { width: 32px; height: 32px; top: 12px; right: 12px; }
+
+  /* Single column for other grids */
   .categories-grid { grid-template-columns: 1fr; }
   .accounts-grid { grid-template-columns: 1fr; }
-  .fab { display: none; } /* replaced by bottom-nav FAB */
 
-  /* Give space for bottom nav */
-  .main-content { padding-bottom: 80px; }
-  #toast-container { bottom: 90px; }
+  /* Hide desktop FAB (replaced by bottom-nav FAB) */
+  .fab { display: none; }
 
-  /* Bigger touch targets on mobile */
+  /* Space for bottom nav */
+  .page-content {
+    padding: 16px 14px;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+  #toast-container { bottom: calc(72px + env(safe-area-inset-bottom) + 8px); }
+
+  /* Topbar */
+  .topbar { height: 56px; padding: 0 12px; gap: 8px; }
+  .topbar-title { font-size: 1rem; }
+  #topbar-date { display: none; } /* hide date on small screens */
+
+  /* Bottom padding for main */
+  .main-content { padding-bottom: 0; }
+
+  /* Bigger touch targets */
   .btn { min-height: 44px; }
-  .form-input, .form-select, .form-textarea { font-size: 16px; /* prevent iOS zoom */ min-height: 44px; }
-  .nav-item { padding: 12px 14px; }
+  .form-input, .form-select, .form-textarea {
+    font-size: 16px; /* prevent iOS zoom */
+    min-height: 44px;
+  }
 
-  /* Full-screen modals on mobile */
+  /* Full-screen bottom-sheet modals */
   .modal-overlay { padding: 0; align-items: flex-end; }
   .modal-box {
     border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
     max-width: 100% !important;
-    max-height: 92vh;
+    max-height: 90vh;
     margin: 0;
-    padding: 24px 20px;
-    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    padding: 24px 16px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
   }
 
-  /* KPI values smaller */
-  .kpi-value { font-size: 1.3rem; }
-  .kpi-card { padding: 16px; }
+  /* Filters wrap + scrollable */
+  #status-filter-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  #status-filter-bar::-webkit-scrollbar { display: none; }
+  .status-btn { white-space: nowrap; flex-shrink: 0; font-size: 0.75rem; padding: 4px 12px; }
 
-  /* Table horizontal scroll on small screens */
+  /* Bill items: stack on mobile */
+  .bill-item {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+  }
+  .bill-info { min-width: 0; width: calc(100% - 90px); }
+  .bill-date { flex-wrap: wrap; font-size: 0.7rem; }
+  .bill-pay-btn { padding: 6px 12px; font-size: 0.75rem; }
+
+  /* Month picker compact */
+  .month-picker { gap: 6px; }
+  .month-label { font-size: 0.875rem; min-width: 110px; }
+
+  /* Table: hide less important cols, allow scroll */
   .data-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  /* Page content safe area */
-  .page-content { padding-bottom: calc(20px + env(safe-area-inset-bottom) + 72px); }
+  /* Bills KPIs: 2×2 */
+  #bills-kpis { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  #bills-kpis .card-value { font-size: 1rem !important; }
+
+  /* Charts shorter on mobile */
+  .chart-wrapper { height: 180px; }
+
+  /* Page header stack */
+  .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .page-header .btn { align-self: flex-end; }
+
+  /* Section headers */
+  .section-header { flex-wrap: wrap; gap: 8px; }
+
+  /* Dash bottom rows */
+  .dash-bottom { grid-template-columns: 1fr; }
+
+  /* Recurring table: simplify */
+  .form-row-3 { grid-template-columns: 1fr; }
 }
 
 /* ══════════════════════════════════════════════
