@@ -3,7 +3,7 @@
    Cache-first para assets estáticos, network-first para Firebase
    ============================================================ */
 
-const CACHE_NAME = 'financie-v1';
+const CACHE_NAME = 'financie-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
