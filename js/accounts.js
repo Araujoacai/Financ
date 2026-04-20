@@ -17,6 +17,37 @@ export function initAccounts() {
   // Listeners do modal (existe no app.html, seguro de consultar aqui)
   setupModalListeners();
 
+  // Delegação de eventos no grid — configurada UMA VEZ aqui,
+  // não dentro de renderCards (que dispara a cada update do Firestore)
+  const grid = document.getElementById('accounts-grid');
+  grid?.addEventListener('click', async e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    const acc = _accounts.find(a => a.id === id);
+    if (!acc) return;
+
+    if (action === 'edit') {
+      openAccountModal(acc);
+    } else if (action === 'adjust') {
+      openBalanceAdjustModal(acc);
+    } else if (action === 'delete') {
+      const ok = await confirmDialog(
+        'Excluir conta',
+        `Excluir a conta "${acc.name}"? As transações associadas não serão excluídas.`,
+        'Excluir',
+        true
+      );
+      if (!ok) return;
+      try {
+        await deleteAccount(id);
+        showToast('Conta excluída', 'info');
+      } catch(err) {
+        showToast('Erro ao excluir', 'error');
+      }
+    }
+  });
+
   if (unsub) unsub();
   unsub = subscribeAccounts(accounts => {
     _accounts = accounts;
@@ -274,27 +305,5 @@ function renderCards(accounts) {
     `;
   }).join('');
 
-  // Delegação de eventos no grid (evita window._* e race conditions)
-  grid.addEventListener('click', async e => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const { action, id, name } = btn.dataset;
-    const acc = _accounts.find(a => a.id === id);
-    if (!acc) return;
-
-    if (action === 'edit') {
-      openAccountModal(acc);
-    } else if (action === 'adjust') {
-      openBalanceAdjustModal(acc);
-    } else if (action === 'delete') {
-      const ok = await confirmDialog('Excluir conta', `Excluir a conta "${acc.name}"? As transações associadas não serão excluídas.`, 'Excluir', true);
-      if (!ok) return;
-      try {
-        await deleteAccount(id);
-        showToast('Conta excluída', 'info');
-      } catch(err) {
-        showToast('Erro ao excluir', 'error');
-      }
-    }
-  }, { once: false });
+  // Listener de clique gerenciado em initAccounts() — não duplicar aqui.
 }
