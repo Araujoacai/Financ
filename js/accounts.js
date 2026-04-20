@@ -5,48 +5,22 @@ import {
 import { formatCurrency, parseAmount, showToast, confirmDialog } from './utils.js';
 
 let unsub = null;
-let _accounts = []; // cache local
+let _accounts = []; // cache local para o event handler
 
 export function initAccounts() {
   const el = document.getElementById('view-accounts');
   el.innerHTML = renderShell();
 
-  // Listeners do botão "Nova Conta" (recriado pelo renderShell)
-  document.getElementById('btn-new-account')?.addEventListener('click', () => openAccountModal());
+  // Botão "Nova Conta" — recriado pelo renderShell, safe registrar aqui
+  document.getElementById('btn-new-account')
+    ?.addEventListener('click', () => openAccountModal());
 
-  // Listeners do modal (existe no app.html, seguro de consultar aqui)
+  // Modal listeners — uma única vez, limpo
   setupModalListeners();
 
-  // Delegação de eventos no grid — configurada UMA VEZ aqui,
-  // não dentro de renderCards (que dispara a cada update do Firestore)
-  const grid = document.getElementById('accounts-grid');
-  grid?.addEventListener('click', async e => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const { action, id } = btn.dataset;
-    const acc = _accounts.find(a => a.id === id);
-    if (!acc) return;
-
-    if (action === 'edit') {
-      openAccountModal(acc);
-    } else if (action === 'adjust') {
-      openBalanceAdjustModal(acc);
-    } else if (action === 'delete') {
-      const ok = await confirmDialog(
-        'Excluir conta',
-        `Excluir a conta "${acc.name}"? As transações associadas não serão excluídas.`,
-        'Excluir',
-        true
-      );
-      if (!ok) return;
-      try {
-        await deleteAccount(id);
-        showToast('Conta excluída', 'info');
-      } catch(err) {
-        showToast('Erro ao excluir', 'error');
-      }
-    }
-  });
+  // Delegação de eventos no grid — UMA VEZ aqui, nunca dentro de renderCards
+  document.getElementById('accounts-grid')
+    ?.addEventListener('click', handleGridClick);
 
   if (unsub) unsub();
   unsub = subscribeAccounts(accounts => {
@@ -57,6 +31,37 @@ export function initAccounts() {
 
 export function destroyAccounts() {
   if (unsub) { unsub(); unsub = null; }
+  // Remove delegação para evitar leak ao re-inicializar
+  document.getElementById('accounts-grid')
+    ?.removeEventListener('click', handleGridClick);
+}
+
+async function handleGridClick(e) {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const { action, id } = btn.dataset;
+  const acc = _accounts.find(a => a.id === id);
+  if (!acc) return;
+
+  if (action === 'edit') {
+    openAccountModal(acc);
+  } else if (action === 'adjust') {
+    openBalanceAdjustModal(acc);
+  } else if (action === 'delete') {
+    const ok = await confirmDialog(
+      'Excluir conta',
+      `Excluir a conta "${acc.name}"? As transações associadas não serão excluídas.`,
+      'Excluir',
+      true
+    );
+    if (!ok) return;
+    try {
+      await deleteAccount(id);
+      showToast('Conta excluída', 'info');
+    } catch (err) {
+      showToast('Erro ao excluir', 'error');
+    }
+  }
 }
 
 function renderShell() {
@@ -72,7 +77,6 @@ function renderShell() {
       </button>
     </div>
 
-    <!-- Total balance -->
     <div id="accounts-total-card" class="card" style="padding:24px;margin-bottom:28px;background:linear-gradient(135deg,var(--bg-surface-2),var(--bg-surface));border:1px solid var(--border)">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
         <div>
@@ -98,57 +102,51 @@ const accountTypeLabel = {
   investment: 'Investimento'
 };
 
-// Tipos onde o saldo representa DÍVIDA (o usuário deve — exibir como negativo)
+// Cartão de crédito armazena saldo como negativo (fatura = valor que o usuário deve)
 const CREDIT_TYPES = new Set(['credit']);
 
 function setupModalListeners() {
   const modal = document.getElementById('account-modal');
-  if (!modal) return; // Segurança: modal deve existir no app.html
+  if (!modal) return;
 
-  const form = document.getElementById('account-form');
-  const closeBtn = document.getElementById('account-modal-close');
-  const cancelBtn = document.getElementById('account-modal-cancel');
-
-  // Remover listeners antigos clonando o form (evita duplicação em re-inicializações)
-  if (form) {
-    const newForm = form.cloneNode(true);
-    form.parentNode.replaceChild(newForm, form);
+  // Clonar o modal-box inteiro para remover TODOS os listeners anteriores de uma vez
+  const box = modal.querySelector('.modal-box');
+  if (box) {
+    const newBox = box.cloneNode(true);
+    box.parentNode.replaceChild(newBox, box);
   }
 
-  const getForm = () => document.getElementById('account-form');
   const closeModal = () => {
     modal.classList.remove('modal-open');
-    document.getElementById('a-id').value = '';
+    const idEl = document.getElementById('a-id');
+    if (idEl) idEl.value = '';
   };
 
-  // Garante que não duplica listeners nos botões estáticos
-  closeBtn?.replaceWith(closeBtn.cloneNode(true));
-  cancelBtn?.replaceWith(cancelBtn.cloneNode(true));
-  document.getElementById('account-modal-close')?.addEventListener('click', closeModal);
-  document.getElementById('account-modal-cancel')?.addEventListener('click', closeModal);
+  modal.querySelector('#account-modal-close')?.addEventListener('click', closeModal);
+  modal.querySelector('#account-modal-cancel')?.addEventListener('click', closeModal);
   modal.querySelector('.modal-backdrop')?.addEventListener('click', closeModal);
 
-  getForm()?.addEventListener('submit', async e => {
+  modal.querySelector('#account-form')?.addEventListener('submit', async e => {
     e.preventDefault();
-    const btn = getForm().querySelector('[type="submit"]');
+    const btn = e.target.querySelector('[type="submit"]');
     btn.disabled = true;
-    const id = document.getElementById('a-id').value;
+
+    const id   = document.getElementById('a-id').value;
     const type = document.getElementById('a-type').value;
     const rawBalance = parseAmount(document.getElementById('a-balance').value);
-
-    // Para cartão de crédito: o saldo inserido representa fatura (valor positivo = você deve)
-    // Internamente armazenamos como NEGATIVO para consistência com o total consolidado
+    // Cartão de crédito: usuário digita valor da fatura (positivo) → armazenamos negativo
     const balance = CREDIT_TYPES.has(type) ? -Math.abs(rawBalance) : rawBalance;
 
     const data = {
-      name: document.getElementById('a-name').value.trim(),
-      icon: document.getElementById('a-icon').value.trim() || '🏦',
+      name:           document.getElementById('a-name').value.trim(),
+      icon:           document.getElementById('a-icon').value.trim() || '🏦',
       type,
-      color: document.getElementById('a-color').value,
+      color:          document.getElementById('a-color').value,
       balance,
       includeInTotal: document.getElementById('a-include-total').checked,
-      active: true
+      active:         true
     };
+
     try {
       if (id) {
         await updateAccount(id, data);
@@ -158,8 +156,9 @@ function setupModalListeners() {
         showToast('Conta criada!', 'success');
       }
       closeModal();
-    } catch(e) {
-      showToast('Erro ao salvar', 'error');
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao salvar conta', 'error');
     } finally {
       btn.disabled = false;
     }
@@ -168,24 +167,21 @@ function setupModalListeners() {
 
 function openAccountModal(acc = null) {
   const isCredit = acc?.type === 'credit';
-  // Ao editar cartão de crédito: exibimos o valor absoluto da fatura (sem o sinal negativo)
-  const displayBalance = (isCredit && acc?.balance != null)
-    ? Math.abs(acc.balance)
+  const displayBalance = isCredit
+    ? Math.abs(acc?.balance ?? 0)
     : (acc?.balance ?? '');
 
   document.getElementById('account-modal-title').textContent = acc ? 'Editar Conta' : 'Nova Conta';
-  document.getElementById('a-id').value = acc?.id || '';
-  document.getElementById('a-name').value = acc?.name || '';
-  document.getElementById('a-icon').value = acc?.icon || '';
-  document.getElementById('a-type').value = acc?.type || 'checking';
-  document.getElementById('a-color').value = acc?.color || '#6366F1';
+  document.getElementById('a-id').value     = acc?.id || '';
+  document.getElementById('a-name').value   = acc?.name || '';
+  document.getElementById('a-icon').value   = acc?.icon || '';
+  document.getElementById('a-type').value   = acc?.type || 'checking';
+  document.getElementById('a-color').value  = acc?.color || '#6366F1';
   document.getElementById('a-balance').value = displayBalance;
   document.getElementById('a-include-total').checked = acc ? acc.includeInTotal !== false : true;
 
-  // Atualizar o label do campo de saldo com base no tipo
   updateBalanceLabel(acc?.type || 'checking');
 
-  // Listener dinâmico para mudar label quando tipo muda
   const typeSelect = document.getElementById('a-type');
   typeSelect.onchange = () => updateBalanceLabel(typeSelect.value);
 
@@ -193,18 +189,13 @@ function openAccountModal(acc = null) {
 }
 
 function updateBalanceLabel(type) {
-  const label = document.querySelector('label[for="a-balance"], .a-balance-label');
-  if (!label) {
-    // Encontra pelo placeholder do input
-    const input = document.getElementById('a-balance');
-    if (!input) return;
-    const parent = input.closest('.form-group');
-    const lbl = parent?.querySelector('.form-label');
-    if (lbl) {
-      lbl.textContent = CREDIT_TYPES.has(type)
-        ? 'Fatura Atual (R$)  ← valor da dívida'
-        : 'Saldo Inicial (R$)';
-    }
+  const input = document.getElementById('a-balance');
+  if (!input) return;
+  const lbl = input.closest('.form-group')?.querySelector('.form-label');
+  if (lbl) {
+    lbl.textContent = CREDIT_TYPES.has(type)
+      ? 'Fatura Atual (R$)'
+      : 'Saldo Inicial (R$)';
   }
 }
 
@@ -212,7 +203,7 @@ function openBalanceAdjustModal(acc) {
   const isCredit = CREDIT_TYPES.has(acc.type);
   const currentDisplay = isCredit ? Math.abs(acc.balance || 0) : (acc.balance || 0);
   const label = isCredit
-    ? `Fatura de "${acc.name}"\nFatura atual: ${formatCurrency(currentDisplay)}\n\nNova fatura (R$) — valor positivo = você deve:`
+    ? `Atualizar fatura de "${acc.name}"\nFatura atual: ${formatCurrency(currentDisplay)}\n\nNova fatura (R$) — informe o valor que você deve:`
     : `Ajustar saldo de "${acc.name}"\nSaldo atual: ${formatCurrency(currentDisplay)}\n\nNovo saldo (R$):`;
 
   const newVal = prompt(label);
@@ -220,9 +211,7 @@ function openBalanceAdjustModal(acc) {
   const parsed = parseAmount(newVal);
   if (isNaN(parsed)) { showToast('Valor inválido', 'error'); return; }
 
-  // Cartão de crédito: armazena negativo; demais: valor direto
   const balance = isCredit ? -Math.abs(parsed) : parsed;
-
   updateAccount(acc.id, { balance })
     .then(() => showToast(
       isCredit
@@ -234,7 +223,7 @@ function openBalanceAdjustModal(acc) {
 }
 
 function renderCards(accounts) {
-  const grid = document.getElementById('accounts-grid');
+  const grid   = document.getElementById('accounts-grid');
   const totalEl = document.getElementById('total-balance');
   if (!grid) return;
 
@@ -243,25 +232,28 @@ function renderCards(accounts) {
     .reduce((s, a) => s + (a.balance || 0), 0);
 
   if (totalEl) {
-    totalEl.textContent = formatCurrency(total);
-    totalEl.style.color = total >= 0 ? 'var(--text-primary)' : 'var(--danger)';
+    totalEl.textContent  = formatCurrency(total);
+    totalEl.style.color  = total >= 0 ? 'var(--text-primary)' : 'var(--danger)';
   }
 
   if (!accounts.length) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon">🏦</div><h3>Nenhuma conta cadastrada</h3><p>Adicione sua conta corrente, poupança, cartão de crédito ou carteira.</p></div>`;
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-state-icon">🏦</div>
+        <h3>Nenhuma conta cadastrada</h3>
+        <p>Adicione sua conta corrente, poupança, cartão de crédito ou carteira.</p>
+      </div>`;
     return;
   }
 
   grid.innerHTML = accounts.map(acc => {
     const isCredit = CREDIT_TYPES.has(acc.type);
-    const balance = acc.balance || 0;
-    // Cartão de crédito: exibir fatura como positiva (com label diferente)
+    const balance  = acc.balance || 0;
     const displayBalance = isCredit ? Math.abs(balance) : balance;
-    const isNegative = !isCredit && balance < 0;
-    const balanceColor = isCredit
-      ? (balance < 0 ? 'var(--danger)' : 'var(--success)')  // tem fatura=danger, zerado=success
-      : (isNegative ? 'var(--danger)' : 'var(--text-primary)');
-    const balanceLabel = isCredit ? 'Fatura Atual' : 'Saldo Atual';
+    const balanceColor   = isCredit
+      ? (balance < 0 ? 'var(--danger)' : 'var(--success)')
+      : (balance < 0 ? 'var(--danger)' : 'var(--text-primary)');
+    const balanceLabel   = isCredit ? 'Fatura Atual' : 'Saldo Atual';
 
     return `
       <div class="account-card card" style="--card-color:${acc.color || 'var(--accent)'}">
@@ -277,14 +269,22 @@ function renderCards(accounts) {
             </div>
           </div>
           <div style="display:flex;gap:6px">
-            <button class="btn-icon btn-sm" data-action="adjust" data-id="${acc.id}" title="${isCredit ? 'Atualizar fatura' : 'Ajustar saldo'}" style="font-size:0.7rem;padding:5px 8px;border-radius:6px">
+            <button class="btn-icon btn-sm" data-action="adjust" data-id="${acc.id}"
+              title="${isCredit ? 'Atualizar fatura' : 'Ajustar saldo'}"
+              style="font-size:0.7rem;padding:5px 8px;border-radius:6px">
               ${isCredit ? '💳 Fatura' : '✏️ Saldo'}
             </button>
             <button class="btn-icon btn-sm" data-action="edit" data-id="${acc.id}" title="Editar">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
             </button>
-            <button class="btn-icon btn-sm" style="color:var(--danger)" data-action="delete" data-id="${acc.id}" data-name="${acc.name}" title="Excluir">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            <button class="btn-icon btn-sm" style="color:var(--danger)" data-action="delete" data-id="${acc.id}" title="Excluir">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              </svg>
             </button>
           </div>
         </div>
@@ -293,7 +293,9 @@ function renderCards(accounts) {
           <div class="card-value" style="color:${balanceColor}">
             ${isCredit && balance < 0 ? '−' : ''}${formatCurrency(displayBalance)}
           </div>
-          ${isCredit && balance < 0 ? `<div style="font-size:0.78rem;color:var(--danger);margin-top:2px">Fatura em aberto</div>` : ''}
+          ${isCredit && balance < 0
+            ? `<div style="font-size:0.78rem;color:var(--danger);margin-top:2px">Fatura em aberto</div>`
+            : ''}
         </div>
         <div style="margin-top:14px;display:flex;align-items:center;gap:8px">
           ${acc.includeInTotal !== false
@@ -304,6 +306,17 @@ function renderCards(accounts) {
       </div>
     `;
   }).join('');
+  // O listener está em initAccounts() — não duplicar aqui.
+}
 
-  // Listener de clique gerenciado em initAccounts() — não duplicar aqui.
+/**
+ * Exportado para uso em transactions.js ao salvar/deletar transações.
+ * Ajusta o saldo de uma conta somando ou subtraindo delta.
+ */
+export async function adjustAccountBalance(accountId, delta) {
+  if (!accountId || !delta) return;
+  const acc = _accounts.find(a => a.id === accountId);
+  if (!acc) return;
+  const newBalance = (acc.balance || 0) + delta;
+  await updateAccount(accountId, { balance: newBalance });
 }

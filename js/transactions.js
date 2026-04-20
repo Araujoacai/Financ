@@ -6,6 +6,7 @@ import {
   formatCurrency, formatDate, formatDateInput, getStatusClass, getStatusLabel,
   parseAmount, showToast, confirmDialog, debounce, toDate, truncate
 } from './utils.js';
+import { adjustAccountBalance } from './accounts.js';
 import { Timestamp } from 'https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js';
 
 let unsub = null;
@@ -190,37 +191,60 @@ function setupShellListeners() {
 
 function setupModalListeners() {
   const modal = document.getElementById('transaction-modal');
-  const closeBtn = document.getElementById('transaction-modal-close');
-  const cancelBtn = document.getElementById('transaction-modal-cancel');
-  const form = document.getElementById('transaction-form');
+  if (!modal) return;
+
+  // Clonar modal-box inteiro remove todos os listeners anteriores
+  const box = modal.querySelector('.modal-box');
+  if (box) {
+    const newBox = box.cloneNode(true);
+    box.parentNode.replaceChild(newBox, box);
+  }
 
   const closeModal = () => { modal.classList.remove('modal-open'); editId = null; };
-  closeBtn?.addEventListener('click', closeModal);
-  cancelBtn?.addEventListener('click', closeModal);
-  modal?.querySelector('.modal-backdrop')?.addEventListener('click', closeModal);
+  modal.querySelector('#transaction-modal-close')?.addEventListener('click', closeModal);
+  modal.querySelector('#transaction-modal-cancel')?.addEventListener('click', closeModal);
+  modal.querySelector('.modal-backdrop')?.addEventListener('click', closeModal);
 
   // Type tabs
-  document.querySelectorAll('#type-tabs .tab-btn').forEach(btn => {
+  modal.querySelectorAll('#type-tabs .tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       currentType = btn.dataset.type;
-      document.querySelectorAll('#type-tabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      modal.querySelectorAll('#type-tabs .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
       populateCategorySelect('t-category', currentType);
     });
   });
 
-  form?.addEventListener('submit', async e => {
+  modal.querySelector('#transaction-form')?.addEventListener('submit', async e => {
     e.preventDefault();
-    const saveBtn = document.getElementById('transaction-modal-save');
+    const saveBtn = modal.querySelector('#transaction-modal-save');
     saveBtn.disabled = true;
-    document.getElementById('t-save-text').textContent = 'Salvando...';
+    modal.querySelector('#t-save-text').textContent = 'Salvando...';
 
     try {
       const data = buildFormData();
+
       if (editId) {
+        // Edição: reverter saldo antigo e aplicar novo
+        const old = allTransactions.find(t => t.id === editId);
+        if (old?.accountId && old.status === 'paid') {
+          // Reverter impacto antigo
+          const oldDelta = old.type === 'income' ? -(old.amount || 0) : (old.amount || 0);
+          await adjustAccountBalance(old.accountId, oldDelta);
+        }
         await updateTransaction(editId, data);
+        // Aplicar novo impacto se pago
+        if (data.accountId && data.status === 'paid') {
+          const newDelta = data.type === 'income' ? (data.amount || 0) : -(data.amount || 0);
+          await adjustAccountBalance(data.accountId, newDelta);
+        }
         showToast('Transação atualizada!', 'success');
       } else {
         await createTransaction(data);
+        // Aplicar impacto no saldo se já marcado como pago
+        if (data.accountId && data.status === 'paid') {
+          const delta = data.type === 'income' ? (data.amount || 0) : -(data.amount || 0);
+          await adjustAccountBalance(data.accountId, delta);
+        }
         showToast('Transação criada!', 'success');
       }
       closeModal();
@@ -229,7 +253,7 @@ function setupModalListeners() {
       showToast('Erro ao salvar transação', 'error');
     } finally {
       saveBtn.disabled = false;
-      document.getElementById('t-save-text').textContent = 'Salvar';
+      modal.querySelector('#t-save-text').textContent = 'Salvar';
     }
   });
 }
@@ -355,7 +379,7 @@ function renderList() {
     `;
   }).join('');
 
-  // Register global handlers
+  // Register global handlers (reatribuição é segura pois são closures que capturam allTransactions)
   window._editTransaction = (id) => {
     const t = allTransactions.find(x => x.id === id);
     if (t) openTransactionModal({ ...t, id });
@@ -364,6 +388,12 @@ function renderList() {
     const ok = await confirmDialog('Excluir transação', 'Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.', 'Excluir', true);
     if (!ok) return;
     try {
+      const t = allTransactions.find(x => x.id === id);
+      // Reverter impacto no saldo se estava pago
+      if (t?.accountId && t.status === 'paid') {
+        const delta = t.type === 'income' ? -(t.amount || 0) : (t.amount || 0);
+        await adjustAccountBalance(t.accountId, delta);
+      }
       await deleteTransaction(id);
       showToast('Transação excluída', 'info');
     } catch (err) {
@@ -372,8 +402,22 @@ function renderList() {
   };
   window._changeStatus = async (status, id) => {
     try {
+      const t = allTransactions.find(x => x.id === id);
       const update = { status };
-      if (status === 'paid') update.paidDate = Timestamp.now();
+      if (status === 'paid') {
+        update.paidDate = Timestamp.now();
+        // Aplicar impacto no saldo ao marcar como pago
+        if (t?.accountId) {
+          const delta = t.type === 'income' ? (t.amount || 0) : -(t.amount || 0);
+          await adjustAccountBalance(t.accountId, delta);
+        }
+      } else if (t?.status === 'paid') {
+        // Estava pago e mudou para outro status: reverter
+        if (t?.accountId) {
+          const delta = t.type === 'income' ? -(t.amount || 0) : (t.amount || 0);
+          await adjustAccountBalance(t.accountId, delta);
+        }
+      }
       await updateTransaction(id, update);
       showToast('Status atualizado!', 'success');
     } catch (e) {
