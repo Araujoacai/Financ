@@ -92,7 +92,15 @@ self.addEventListener('sync', event => {
 
 // ── Push Notifications placeholder ──
 self.addEventListener('push', event => {
-  const data = event.data?.json() ?? { title: 'Financie', body: 'Você tem contas a vencer!' };
+  let data = { title: 'Financie', body: 'Você tem contas a vencer!' };
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch {
+      // Payload is plain text, not JSON
+      data = { title: 'Financie', body: event.data.text() };
+    }
+  }
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
