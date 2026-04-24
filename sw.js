@@ -3,7 +3,7 @@
    Cache-first para assets estáticos, network-first para Firebase
    ============================================================ */
 
-const CACHE_NAME = 'financie-v5';
+const CACHE_NAME = 'financie-v6';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -63,7 +63,23 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Cache-first for static assets
+  // Network-first para JS (garante código sempre atualizado)
+  if (url.pathname.includes('/js/') || url.pathname.endsWith('.js')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request)) // fallback offline
+    );
+    return;
+  }
+
+  // Cache-first para demais assets estáticos (CSS, imagens, fonts)
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;

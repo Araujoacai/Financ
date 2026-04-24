@@ -6,6 +6,7 @@ import { formatCurrency, parseAmount, showToast, confirmDialog } from './utils.j
 
 let unsub = null;
 let _accounts = []; // cache local para o event handler
+let gridEl = null;  // referência fixa ao DOM node — necessário para removeEventListener funcionar
 
 export function initAccounts() {
   const el = document.getElementById('view-accounts');
@@ -18,9 +19,9 @@ export function initAccounts() {
   // Modal listeners — uma única vez, limpo
   setupModalListeners();
 
-  // Delegação de eventos no grid — UMA VEZ aqui, nunca dentro de renderCards
-  document.getElementById('accounts-grid')
-    ?.addEventListener('click', handleGridClick);
+  // Guarda referência ANTES de qualquer re-render — removeEventListener exige o mesmo nó
+  gridEl = document.getElementById('accounts-grid');
+  gridEl?.addEventListener('click', handleGridClick);
 
   if (unsub) unsub();
   unsub = subscribeAccounts(accounts => {
@@ -31,9 +32,9 @@ export function initAccounts() {
 
 export function destroyAccounts() {
   if (unsub) { unsub(); unsub = null; }
-  // Remove delegação para evitar leak ao re-inicializar
-  document.getElementById('accounts-grid')
-    ?.removeEventListener('click', handleGridClick);
+  // Remove o listener do nó original (não do DOM atual, que pode ter sido substituído)
+  gridEl?.removeEventListener('click', handleGridClick);
+  gridEl = null;
 }
 
 async function handleGridClick(e) {
