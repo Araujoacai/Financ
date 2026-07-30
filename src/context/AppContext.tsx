@@ -112,10 +112,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [firebaseCreds, setFirebaseCreds] = useState<FirebaseCredentials>(FirebaseService.getStoredCredentials());
   const [isSyncingPluggy, setIsSyncingPluggy] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isCloudLoaded, setIsCloudLoaded] = useState(false);
 
-  // Load Firestore financial data on login
+  // Load Firestore financial data on login securely BEFORE allowing saves
   useEffect(() => {
     if (user?.uid && user.uid !== 'guest-demo') {
+      setIsCloudLoaded(false);
       FirebaseService.loadUserFinancialData(user.uid).then(data => {
         if (data) {
           if (data.accounts) setAccounts(data.accounts);
@@ -125,13 +127,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (data.goals) setGoals(data.goals);
           if (data.investments) setInvestments(data.investments);
         }
+        setIsCloudLoaded(true);
+      }).catch(err => {
+        console.error('Error loading Firestore data:', err);
+        setIsCloudLoaded(true);
       });
+    } else {
+      setIsCloudLoaded(true);
     }
   }, [user?.uid]);
 
-  // Sync to Firestore whenever state changes
+  // Sync to Firestore ONLY after initial cloud load completes to prevent overwriting
   useEffect(() => {
-    if (user?.uid && user.uid !== 'guest-demo') {
+    if (user?.uid && user.uid !== 'guest-demo' && isCloudLoaded) {
       FirebaseService.saveUserFinancialData(user.uid, {
         accounts,
         transactions,
@@ -141,7 +149,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         investments
       });
     }
-  }, [user?.uid, accounts, transactions, bills, budgets, goals, investments]);
+  }, [user?.uid, isCloudLoaded, accounts, transactions, bills, budgets, goals, investments]);
 
   useEffect(() => {
     localStorage.setItem('aura_theme', theme);
