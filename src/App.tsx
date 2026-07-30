@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { AuthModal } from './components/AuthModal';
 import { PluggyModal } from './components/PluggyModal';
+import { LandingLockScreen } from './components/LandingLockScreen';
 import { NewTransactionModal } from './components/NewTransactionModal';
 import { NewBillModal } from './components/NewBillModal';
 import { Dashboard } from './pages/Dashboard';
@@ -17,12 +18,21 @@ import { Settings } from './pages/Settings';
 import { NotificationService } from './services/notificationService';
 
 const AppContent: React.FC = () => {
+  const { user, bills } = useApp();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isPluggyModalOpen, setIsPluggyModalOpen] = useState(false);
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
 
-  const { bills } = useApp();
+  // Auth Guard: Require Login to View Financial Data
+  if (!user) {
+    return (
+      <>
+        <LandingLockScreen />
+        <AuthModal />
+      </>
+    );
+  }
 
   const overdue = NotificationService.getOverdueBills(bills);
   const dueToday = NotificationService.getDueTodayBills(bills);
