@@ -39,12 +39,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const { accounts, transactions, bills, payBill } = useApp();
 
   const netWorth = accounts.reduce((acc, a) => acc + a.balance, 0);
-  
-  const totalIncome = transactions
+
+  // Current month filter
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0-indexed
+
+  const currentMonthTransactions = transactions.filter(t => {
+    if (!t.date) return false;
+    const d = new Date(t.date);
+    return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+  });
+
+  const totalIncome = currentMonthTransactions
     .filter(t => t.type === 'income')
     .reduce((acc, t) => acc + t.amount, 0);
 
-  const totalExpense = transactions
+  const totalExpense = currentMonthTransactions
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => acc + t.amount, 0);
 
@@ -52,17 +63,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const dueTodayBills = NotificationService.getDueTodayBills(bills);
   const urgentBills = [...overdueBills, ...dueTodayBills];
 
-  const chartData = [
-    { name: 'Fev', Receitas: 14200, Despesas: 9100 },
-    { name: 'Mar', Receitas: 15800, Despesas: 10400 },
-    { name: 'Abr', Receitas: 16500, Despesas: 8900 },
-    { name: 'Mai', Receitas: 17100, Despesas: 11200 },
-    { name: 'Jun', Receitas: 19400, Despesas: 9800 },
-    { name: 'Jul', Receitas: totalIncome || 22700, Despesas: totalExpense || 11600 },
-  ];
+  // Build last 6 months chart from real transaction data
+  const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const chartData = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(currentYear, currentMonth - 5 + i, 1);
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const monthTxs = transactions.filter(t => {
+      if (!t.date) return false;
+      const td = new Date(t.date);
+      return td.getFullYear() === y && td.getMonth() === m;
+    });
+    const rec = monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const desp = monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    return { name: MONTH_NAMES[m], Receitas: rec, Despesas: desp };
+  });
 
+  // Pie: expenses of current month only
   const categoriesMap: Record<string, number> = {};
-  transactions
+  currentMonthTransactions
     .filter(t => t.type === 'expense')
     .forEach(t => {
       categoriesMap[t.category] = (categoriesMap[t.category] || 0) + t.amount;
@@ -137,7 +156,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             R$ {totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </h3>
           <p className="text-[11px] text-slate-400 mt-2">
-            {transactions.filter(t => t.type === 'income').length} lançamentos
+            {currentMonthTransactions.filter(t => t.type === 'income').length} lançamentos em {MONTH_NAMES[currentMonth]}
           </p>
         </div>
 
@@ -152,7 +171,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             R$ {totalExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </h3>
           <p className="text-[11px] text-slate-400 mt-2">
-            {transactions.filter(t => t.type === 'expense').length} lançamentos
+            {currentMonthTransactions.filter(t => t.type === 'expense').length} lançamentos em {MONTH_NAMES[currentMonth]}
           </p>
         </div>
 
