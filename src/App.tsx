@@ -17,8 +17,32 @@ import { Investments } from './pages/Investments';
 import { Settings } from './pages/Settings';
 import { NotificationService } from './services/notificationService';
 
+const CloudLoadingOverlay: React.FC = () => (
+  <div style={{
+    position: 'fixed', inset: 0, zIndex: 9999,
+    background: 'rgba(7, 10, 18, 0.92)',
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    gap: '16px', backdropFilter: 'blur(8px)'
+  }}>
+    <div style={{
+      width: 56, height: 56, borderRadius: '50%',
+      border: '3px solid rgba(16, 185, 129, 0.2)',
+      borderTop: '3px solid #10b981',
+      animation: 'spin 0.9s linear infinite'
+    }} />
+    <p style={{ color: '#10b981', fontWeight: 600, fontSize: '1rem', letterSpacing: '0.02em' }}>
+      Carregando seus dados da nuvem...
+    </p>
+    <p style={{ color: '#64748b', fontSize: '0.8rem' }}>
+      Sincronizando com o Firebase
+    </p>
+    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+  </div>
+);
+
 const AppContent: React.FC = () => {
-  const { user, bills } = useApp();
+  const { user, bills, isLoadingCloudData } = useApp();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isPluggyModalOpen, setIsPluggyModalOpen] = useState(false);
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
@@ -77,6 +101,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#070a12] text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
+      {isLoadingCloudData && <CloudLoadingOverlay />}
       <div className="flex flex-1">
         {/* Sidebar Navigation */}
         <Sidebar 

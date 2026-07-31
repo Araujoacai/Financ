@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type { 
   UserProfile, 
   ThemeMode, 
@@ -37,6 +37,7 @@ interface AppContextType {
   firebaseCreds: FirebaseCredentials;
   isSyncingPluggy: boolean;
   isAuthModalOpen: boolean;
+  isLoadingCloudData: boolean;
   
   // Actions
   setTheme: (theme: ThemeMode) => void;
@@ -78,79 +79,116 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (localStorage.getItem('aura_theme') as ThemeMode) || 'luxury';
   });
 
-  const [accounts, setAccounts] = useState<BankAccount[]>(() => {
-    const saved = localStorage.getItem('aura_accounts');
-    return saved ? JSON.parse(saved) : INITIAL_ACCOUNTS;
-  });
-
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('aura_transactions');
-    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
-  });
-
-  const [bills, setBills] = useState<Bill[]>(() => {
-    const saved = localStorage.getItem('aura_bills');
-    return saved ? JSON.parse(saved) : INITIAL_BILLS;
-  });
-
-  const [budgets, setBudgets] = useState<CategoryBudget[]>(() => {
-    const saved = localStorage.getItem('aura_budgets');
-    return saved ? JSON.parse(saved) : INITIAL_BUDGETS;
-  });
-
-  const [goals, setGoals] = useState<FinancialGoal[]>(() => {
-    const saved = localStorage.getItem('aura_goals');
-    return saved ? JSON.parse(saved) : INITIAL_GOALS;
-  });
-
-  const [investments, setInvestments] = useState<InvestmentItem[]>(() => {
-    const saved = localStorage.getItem('aura_investments');
-    return saved ? JSON.parse(saved) : INITIAL_INVESTMENTS;
-  });
+  // Financial state — always start empty/default; cloud data will override on login
+  const [accounts, setAccounts] = useState<BankAccount[]>(INITIAL_ACCOUNTS);
+  const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
+  const [bills, setBills] = useState<Bill[]>(INITIAL_BILLS);
+  const [budgets, setBudgets] = useState<CategoryBudget[]>(INITIAL_BUDGETS);
+  const [goals, setGoals] = useState<FinancialGoal[]>(INITIAL_GOALS);
+  const [investments, setInvestments] = useState<InvestmentItem[]>(INITIAL_INVESTMENTS);
 
   const [pluggyCreds, setPluggyCreds] = useState<PluggyCredentials>(PluggyService.getStoredCredentials());
   const [firebaseCreds, setFirebaseCreds] = useState<FirebaseCredentials>(FirebaseService.getStoredCredentials());
   const [isSyncingPluggy, setIsSyncingPluggy] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isCloudLoaded, setIsCloudLoaded] = useState(false);
+  const [isLoadingCloudData, setIsLoadingCloudData] = useState(false);
 
-  // Load Firestore financial data on login securely BEFORE allowing saves
+  // Ref to block Firestore saves until initial load completes
+  // This prevents local empty state from overwriting cloud data on first render
+  const cloudLoadedRef = useRef(false);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ---------------------------------------------------------------
+  // LOAD from Firestore when user logs in — ALWAYS overrides local
+  // ---------------------------------------------------------------
   useEffect(() => {
-    if (user?.uid && user.uid !== 'guest-demo') {
-      setIsCloudLoaded(false);
-      FirebaseService.loadUserFinancialData(user.uid).then(data => {
-        if (data) {
-          if (data.accounts) setAccounts(data.accounts);
-          if (data.transactions) setTransactions(data.transactions);
-          if (data.bills) setBills(data.bills);
-          if (data.budgets) setBudgets(data.budgets);
-          if (data.goals) setGoals(data.goals);
-          if (data.investments) setInvestments(data.investments);
-        }
-        setIsCloudLoaded(true);
-      }).catch(err => {
-        console.error('Error loading Firestore data:', err);
-        setIsCloudLoaded(true);
-      });
-    } else {
-      setIsCloudLoaded(true);
+    if (!user?.uid || user.uid === 'guest-demo') {
+      // Guest or no user: use localStorage for persistence
+      cloudLoadedRef.current = true;
+      const savedAccounts = localStorage.getItem('aura_accounts');
+      const savedTx = localStorage.getItem('aura_transactions');
+      const savedBills = localStorage.getItem('aura_bills');
+      const savedBudgets = localStorage.getItem('aura_budgets');
+      const savedGoals = localStorage.getItem('aura_goals');
+      const savedInvestments = localStorage.getItem('aura_investments');
+      if (savedAccounts) setAccounts(JSON.parse(savedAccounts));
+      if (savedTx) setTransactions(JSON.parse(savedTx));
+      if (savedBills) setBills(JSON.parse(savedBills));
+      if (savedBudgets) setBudgets(JSON.parse(savedBudgets));
+      if (savedGoals) setGoals(JSON.parse(savedGoals));
+      if (savedInvestments) setInvestments(JSON.parse(savedInvestments));
+      return;
     }
+
+    // Authenticated user: ALWAYS load from Firestore first
+    cloudLoadedRef.current = false;
+    setIsLoadingCloudData(true);
+
+    FirebaseService.loadUserFinancialData(user.uid)
+      .then(data => {
+        if (data) {
+          // Cloud data exists — use it (overrides anything in localStorage)
+          if (data.accounts !== undefined) setAccounts(data.accounts);
+          if (data.transactions !== undefined) setTransactions(data.transactions);
+          if (data.bills !== undefined) setBills(data.bills);
+          if (data.budgets !== undefined) setBudgets(data.budgets);
+          if (data.goals !== undefined) setGoals(data.goals);
+          if (data.investments !== undefined) setInvestments(data.investments);
+        } else {
+          // First login ever — try to migrate localStorage data if any
+          const savedAccounts = localStorage.getItem('aura_accounts');
+          const savedTx = localStorage.getItem('aura_transactions');
+          const savedBills = localStorage.getItem('aura_bills');
+          const savedBudgets = localStorage.getItem('aura_budgets');
+          const savedGoals = localStorage.getItem('aura_goals');
+          const savedInvestments = localStorage.getItem('aura_investments');
+          if (savedAccounts) setAccounts(JSON.parse(savedAccounts));
+          if (savedTx) setTransactions(JSON.parse(savedTx));
+          if (savedBills) setBills(JSON.parse(savedBills));
+          if (savedBudgets) setBudgets(JSON.parse(savedBudgets));
+          if (savedGoals) setGoals(JSON.parse(savedGoals));
+          if (savedInvestments) setInvestments(JSON.parse(savedInvestments));
+        }
+      })
+      .catch(err => {
+        console.error('Error loading Firestore data:', err);
+      })
+      .finally(() => {
+        // Now it's safe to allow saves
+        cloudLoadedRef.current = true;
+        setIsLoadingCloudData(false);
+      });
   }, [user?.uid]);
 
-  // Sync to Firestore ONLY after initial cloud load completes to prevent overwriting
-  useEffect(() => {
-    if (user?.uid && user.uid !== 'guest-demo' && isCloudLoaded) {
+  // ---------------------------------------------------------------
+  // SAVE to Firestore — debounced, only after cloud data is loaded
+  // ---------------------------------------------------------------
+  const saveToFirestore = useCallback(() => {
+    if (!user?.uid || user.uid === 'guest-demo') return;
+    if (!cloudLoadedRef.current) return; // Block saves until loaded
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
       FirebaseService.saveUserFinancialData(user.uid, {
         accounts,
         transactions,
         bills,
         budgets,
         goals,
-        investments
+        investments,
       });
-    }
-  }, [user?.uid, isCloudLoaded, accounts, transactions, bills, budgets, goals, investments]);
+    }, 1500); // Debounce 1.5s to avoid excessive writes
+  }, [user?.uid, accounts, transactions, bills, budgets, goals, investments]);
 
+  useEffect(() => {
+    if (cloudLoadedRef.current) {
+      saveToFirestore();
+    }
+  }, [saveToFirestore]);
+
+  // ---------------------------------------------------------------
+  // Theme
+  // ---------------------------------------------------------------
   useEffect(() => {
     localStorage.setItem('aura_theme', theme);
     document.documentElement.className = 'dark';
@@ -160,29 +198,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [theme]);
 
-  useEffect(() => {
-    localStorage.setItem('aura_accounts', JSON.stringify(accounts));
-  }, [accounts]);
-
-  useEffect(() => {
-    localStorage.setItem('aura_transactions', JSON.stringify(transactions));
-  }, [transactions]);
-
-  useEffect(() => {
-    localStorage.setItem('aura_bills', JSON.stringify(bills));
-  }, [bills]);
-
-  useEffect(() => {
-    localStorage.setItem('aura_budgets', JSON.stringify(budgets));
-  }, [budgets]);
-
-  useEffect(() => {
-    localStorage.setItem('aura_goals', JSON.stringify(goals));
-  }, [goals]);
-
-  useEffect(() => {
-    localStorage.setItem('aura_investments', JSON.stringify(investments));
-  }, [investments]);
+  // ---------------------------------------------------------------
+  // localStorage sync (for guest / offline fallback)
+  // ---------------------------------------------------------------
+  useEffect(() => { localStorage.setItem('aura_accounts', JSON.stringify(accounts)); }, [accounts]);
+  useEffect(() => { localStorage.setItem('aura_transactions', JSON.stringify(transactions)); }, [transactions]);
+  useEffect(() => { localStorage.setItem('aura_bills', JSON.stringify(bills)); }, [bills]);
+  useEffect(() => { localStorage.setItem('aura_budgets', JSON.stringify(budgets)); }, [budgets]);
+  useEffect(() => { localStorage.setItem('aura_goals', JSON.stringify(goals)); }, [goals]);
+  useEffect(() => { localStorage.setItem('aura_investments', JSON.stringify(investments)); }, [investments]);
 
   useEffect(() => {
     NotificationService.checkAndNotifyDueBills(bills);
@@ -190,6 +214,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setTheme = (newTheme: ThemeMode) => setThemeState(newTheme);
 
+  // ---------------------------------------------------------------
+  // Auth
+  // ---------------------------------------------------------------
   const loginWithGoogle = async () => {
     const loggedUser = await FirebaseService.signInWithGoogle();
     setUser(loggedUser);
@@ -220,8 +247,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = () => {
     setUser(null);
     localStorage.removeItem('aura_user');
+    // Clear financial state on logout so next login starts fresh from cloud
+    cloudLoadedRef.current = false;
+    setAccounts(INITIAL_ACCOUNTS);
+    setTransactions(INITIAL_TRANSACTIONS);
+    setBills(INITIAL_BILLS);
+    setBudgets(INITIAL_BUDGETS);
+    setGoals(INITIAL_GOALS);
+    setInvestments(INITIAL_INVESTMENTS);
   };
 
+  // ---------------------------------------------------------------
+  // Financial Actions
+  // ---------------------------------------------------------------
   const addTransaction = (txData: Omit<Transaction, 'id'>) => {
     const newTx: Transaction = {
       ...txData,
@@ -296,32 +334,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBills(prev => prev.filter(b => b.id !== id));
   };
 
+  // ---------------------------------------------------------------
+  // Pluggy Integration
+  // ---------------------------------------------------------------
   const importPluggyData = (newAccounts: BankAccount[], newTransactions: Transaction[], newInvestments?: InvestmentItem[]) => {
     setAccounts(prev => {
       const accountMap = new Map(prev.map(a => [a.id, a]));
       for (const newAcc of newAccounts) {
         accountMap.set(newAcc.id, newAcc);
       }
-      const updated = Array.from(accountMap.values());
-      localStorage.setItem('aura_accounts', JSON.stringify(updated));
-      return updated;
+      return Array.from(accountMap.values());
     });
 
     setTransactions(prev => {
-      const existingTxIds = new Set(prev.map(t => t.id || t.pluggyTransactionId));
-      const unique = newTransactions.filter(t => !existingTxIds.has(t.id) && !existingTxIds.has(t.pluggyTransactionId));
-      const updated = [...unique, ...prev];
-      localStorage.setItem('aura_transactions', JSON.stringify(updated));
-      return updated;
+      const existingIds = new Set([
+        ...prev.map(t => t.id),
+        ...prev.map(t => t.pluggyTransactionId).filter(Boolean)
+      ]);
+      const unique = newTransactions.filter(t =>
+        !existingIds.has(t.id) && !existingIds.has(t.pluggyTransactionId)
+      );
+      return [...unique, ...prev];
     });
 
     if (newInvestments && newInvestments.length > 0) {
       setInvestments(prev => {
         const existingInvIds = new Set(prev.map(i => i.id));
         const unique = newInvestments.filter(i => !existingInvIds.has(i.id));
-        const updated = [...prev, ...unique];
-        localStorage.setItem('aura_investments', JSON.stringify(updated));
-        return updated;
+        return [...prev, ...unique];
       });
     }
   };
@@ -356,6 +396,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setFirebaseCreds(updated);
   };
 
+  // ---------------------------------------------------------------
+  // Budget & Goals
+  // ---------------------------------------------------------------
   const updateBudget = (id: string, limitAmount: number) => {
     setBudgets(prev => prev.map(b => b.id === id ? { ...b, limitAmount } : b));
   };
@@ -387,6 +430,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       firebaseCreds,
       isSyncingPluggy,
       isAuthModalOpen,
+      isLoadingCloudData,
       setTheme,
       setIsAuthModalOpen,
       loginWithGoogle,

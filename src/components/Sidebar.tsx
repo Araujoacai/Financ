@@ -21,7 +21,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, dueBillsCount }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard },
-    { id: 'analytics', label: 'Análise de Gastos', icon: BarChart3, badge: 'NOVO' },
+    { id: 'analytics', label: 'Análise de Gastos', icon: BarChart3 },
     { id: 'pluggy', label: 'Open Banking (Pluggy)', icon: Building2, badge: 'API' },
     { id: 'transactions', label: 'Transações', icon: ArrowLeftRight },
     { 
