@@ -1,11 +1,12 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import type { FirebaseApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  onAuthStateChanged
 } from 'firebase/auth';
 import type { Auth } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
@@ -26,18 +27,36 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 
-try {
-  const savedConfig = localStorage.getItem('aura_firebase_credentials');
-  const config = savedConfig ? JSON.parse(savedConfig) : DEFAULT_FIREBASE_CONFIG;
-
-  if (config.apiKey && config.projectId) {
-    app = initializeApp(config);
+function initFirebase(config: FirebaseCredentials) {
+  try {
+    // Prevent "Firebase App named '[DEFAULT]' already exists" error
+    if (getApps().length > 0) {
+      app = getApp();
+    } else {
+      app = initializeApp(config);
+    }
     auth = getAuth(app);
     db = getFirestore(app);
+    console.log('[Firebase] Initialized successfully. Project:', config.projectId);
+  } catch (e) {
+    console.error('[Firebase] Initialization error:', e);
+    app = null;
+    auth = null;
+    db = null;
   }
-} catch (e) {
-  console.error('Firebase initialization error:', e);
 }
+
+// Initialize on module load
+const savedConfig = (() => {
+  try {
+    const raw = localStorage.getItem('aura_firebase_credentials');
+    return raw ? JSON.parse(raw) : DEFAULT_FIREBASE_CONFIG;
+  } catch {
+    return DEFAULT_FIREBASE_CONFIG;
+  }
+})();
+
+initFirebase(savedConfig);
 
 export class FirebaseService {
   private static CREDENTIALS_KEY = 'aura_firebase_credentials';
@@ -62,22 +81,26 @@ export class FirebaseService {
       isConfigured: Boolean((creds.apiKey || current.apiKey) && (creds.projectId || current.projectId))
     };
     localStorage.setItem(this.CREDENTIALS_KEY, JSON.stringify(updated));
-    
-    // Re-initialize Firebase
-    try {
-      app = initializeApp(updated);
-      auth = getAuth(app);
-      db = getFirestore(app);
-    } catch (e) {
-      console.error('Error reinitializing Firebase:', e);
-    }
-
+    // Re-init only if project changed
+    initFirebase(updated);
     return updated;
+  }
+
+  /** Returns the current Firebase Auth user's UID, waiting for auth state to resolve */
+  static getCurrentUid(): Promise<string | null> {
+    return new Promise((resolve) => {
+      if (!auth) return resolve(null);
+      // onAuthStateChanged resolves immediately if auth state is already known
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        unsubscribe();
+        resolve(user ? user.uid : null);
+      });
+    });
   }
 
   static async signInWithGoogle(): Promise<UserProfile> {
     if (!auth) {
-      throw new Error('Firebase Auth não inicializado.');
+      throw new Error('Firebase Auth não inicializado. Verifique a configuração do Firebase.');
     }
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
@@ -95,8 +118,9 @@ export class FirebaseService {
     if (db) {
       try {
         await setDoc(doc(db, 'users', user.uid), userProfile, { merge: true });
+        console.log('[Firebase] User profile saved to Firestore:', user.uid);
       } catch (e) {
-        console.warn('Error saving user profile to Firestore:', e);
+        console.error('[Firebase] Error saving user profile:', e);
       }
     }
 
@@ -111,7 +135,7 @@ export class FirebaseService {
     try {
       const res = await signInWithEmailAndPassword(auth, email, pass);
       user = res.user;
-    } catch (e) {
+    } catch {
       const res = await createUserWithEmailAndPassword(auth, email, pass);
       user = res.user;
     }
@@ -128,7 +152,7 @@ export class FirebaseService {
       try {
         await setDoc(doc(db, 'users', user.uid), userProfile, { merge: true });
       } catch (e) {
-        console.warn('Error saving user to Firestore:', e);
+        console.error('[Firebase] Error saving email user:', e);
       }
     }
 
@@ -136,7 +160,8 @@ export class FirebaseService {
   }
 
   /**
-   * Save user financial data (accounts, transactions, bills, budgets, goals, investments) to Firestore
+   * Save user financial data to Firestore.
+   * Waits for Firebase Auth state before writing to ensure the token is valid.
    */
   static async saveUserFinancialData(uid: string, data: {
     accounts?: any[];
@@ -147,29 +172,58 @@ export class FirebaseService {
     investments?: any[];
   }) {
     if (!db || !uid || uid === 'guest-demo') return;
+
+    // Ensure Firebase Auth has resolved before writing (prevents permission-denied)
+    const currentUid = await this.getCurrentUid();
+    if (!currentUid || currentUid !== uid) {
+      console.warn('[Firebase] Save skipped: Auth UID mismatch or not authenticated.', { currentUid, uid });
+      return;
+    }
+
     try {
       await setDoc(doc(db, 'users', uid), {
         financialData: data,
         updatedAt: new Date().toISOString()
       }, { merge: true });
-    } catch (e) {
-      console.warn('Error saving financial data to Firestore:', e);
+      console.log('[Firebase] Financial data saved for:', uid);
+    } catch (e: any) {
+      console.error('[Firebase] Error saving financial data:', e?.code, e?.message);
     }
   }
 
   /**
-   * Load user financial data from Firestore
+   * Load user financial data from Firestore.
+   * Waits for Firebase Auth state before reading.
    */
   static async loadUserFinancialData(uid: string) {
-    if (!db || !uid || uid === 'guest-demo') return null;
+    if (!db || !uid || uid === 'guest-demo') {
+      console.log('[Firebase] Load skipped: db=', !!db, 'uid=', uid);
+      return null;
+    }
+
+    // Wait for auth state to be ready before reading
+    const currentUid = await this.getCurrentUid();
+    if (!currentUid || currentUid !== uid) {
+      console.warn('[Firebase] Load skipped: Auth UID mismatch.', { currentUid, uid });
+      return null;
+    }
+
     try {
+      console.log('[Firebase] Loading financial data for:', uid);
       const userRef = doc(db, 'users', uid);
       const snap = await getDoc(userRef);
-      if (snap.exists() && snap.data().financialData) {
-        return snap.data().financialData;
+
+      if (snap.exists()) {
+        const d = snap.data();
+        console.log('[Firebase] Document found. Has financialData:', !!d.financialData);
+        if (d.financialData) {
+          return d.financialData;
+        }
+      } else {
+        console.log('[Firebase] No document found for user:', uid);
       }
-    } catch (e) {
-      console.warn('Error loading financial data from Firestore:', e);
+    } catch (e: any) {
+      console.error('[Firebase] Error loading financial data:', e?.code, e?.message);
     }
     return null;
   }
