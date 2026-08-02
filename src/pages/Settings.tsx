@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import type { ThemeMode } from '../types';
+import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { 
   Settings as SettingsIcon, 
   Palette, 
@@ -9,11 +10,14 @@ import {
   Database, 
   CheckCircle2, 
   Trash2,
-  Lock
+  Lock,
+  MessageSquare,
+  Smartphone
 } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const { 
+    user,
     theme, 
     setTheme, 
     pluggyCreds, 
@@ -30,6 +34,47 @@ export const Settings: React.FC = () => {
   const [fbAuthDomain, setFbAuthDomain] = useState(firebaseCreds.authDomain);
   const [fbProjectId, setFbProjectId] = useState(firebaseCreds.projectId);
   const [fbSaved, setFbSaved] = useState(false);
+
+  // WhatsApp Bot linking
+  const [linkCode, setLinkCode] = useState('');
+  const [linkStatus, setLinkStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [linkMessage, setLinkMessage] = useState('');
+
+  const handleWhatsAppLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!linkCode.trim() || !user?.uid) return;
+    setLinkStatus('loading');
+    try {
+      const db = getFirestore();
+      const codeRef = doc(db, 'linkCodes', linkCode.trim());
+      const snap = await getDoc(codeRef);
+      if (!snap.exists()) {
+        setLinkStatus('error');
+        setLinkMessage('Código inválido ou expirado. Gere um novo código no bot.');
+        return;
+      }
+      const data = snap.data();
+      if (new Date(data.expiresAt) < new Date()) {
+        setLinkStatus('error');
+        setLinkMessage('Código expirado. Digite "conectar" no bot para gerar um novo.');
+        return;
+      }
+      // Save phone → userId link in Firestore
+      const phone = data.phone as string;
+      const phoneRef = doc(db, 'phoneLinks', phone);
+      await updateDoc(phoneRef, { userId: user.uid }).catch(() =>
+        import('firebase/firestore').then(({ setDoc }) =>
+          setDoc(phoneRef, { userId: user.uid, phoneNumber: phone, linkedAt: new Date().toISOString() })
+        )
+      );
+      setLinkStatus('success');
+      setLinkMessage(`✅ WhatsApp vinculado com sucesso!`);
+      setLinkCode('');
+    } catch (err) {
+      setLinkStatus('error');
+      setLinkMessage('Erro ao vincular. Tente novamente.');
+    }
+  };
 
   const themes: { id: ThemeMode; label: string; desc: string; color: string }[] = [
     { id: 'luxury', label: 'Luxury Dark', desc: 'Design escuro com detalhes em esmeralda e vidro', color: '#10b981' },
@@ -190,6 +235,60 @@ export const Settings: React.FC = () => {
             {fbSaved ? <CheckCircle2 className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
             {fbSaved ? 'Salvo!' : 'Salvar Configuração Firebase'}
           </button>
+        </form>
+      </div>
+
+      {/* WhatsApp Bot Section */}
+      <div className="p-6 glass-card border-green-500/20 space-y-4">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-4 h-4 text-green-400" />
+          <h3 className="text-base font-bold text-white">WhatsApp Bot</h3>
+          <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-[10px] font-bold border border-green-500/30">NOVO</span>
+        </div>
+        <p className="text-xs text-slate-400">
+          Vincule seu WhatsApp para registrar gastos, consultar saldo e resumos diretamente pelo app de mensagens.
+        </p>
+
+        <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2">
+          <p className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <Smartphone className="w-3.5 h-3.5 text-green-400" />
+            Como vincular:
+          </p>
+          <ol className="text-xs text-slate-400 space-y-1 list-decimal list-inside">
+            <li>Inicie o bot no PC (<code className="text-green-400">npm run dev</code>)</li>
+            <li>Escaneie o QR Code com seu WhatsApp</li>
+            <li>Envie <code className="bg-white/10 px-1.5 py-0.5 rounded text-green-300">conectar</code> para o bot</li>
+            <li>Cole o código de 6 dígitos abaixo</li>
+          </ol>
+        </div>
+
+        <form onSubmit={handleWhatsAppLink} className="space-y-3">
+          <div>
+            <label className="block text-xs text-slate-300 mb-1">Código de Vinculação (6 dígitos)</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={linkCode}
+                onChange={e => setLinkCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="123456"
+                maxLength={6}
+                className="glass-input text-sm font-mono tracking-widest w-36 text-center"
+              />
+              <button
+                type="submit"
+                disabled={linkCode.length !== 6 || linkStatus === 'loading' || !user}
+                className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center gap-2"
+              >
+                {linkStatus === 'loading' ? '...' : linkStatus === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
+                {linkStatus === 'loading' ? 'Vinculando...' : linkStatus === 'success' ? 'Vinculado!' : 'Vincular'}
+              </button>
+            </div>
+          </div>
+          {linkMessage && (
+            <p className={`text-xs font-medium ${linkStatus === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+              {linkMessage}
+            </p>
+          )}
         </form>
       </div>
 
