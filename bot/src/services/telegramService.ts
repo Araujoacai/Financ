@@ -69,7 +69,10 @@ export class TelegramBotService {
       // Launch bot (Polling mode)
       if (config.telegram.usePolling) {
         this.bot.launch(() => {
-          console.log('[TelegramBot] Bot initialized and listening with Long-Polling! 🚀');
+          console.log('🤖 [TelegramBot] Bot inicializado e escutando mensagens via Long-Polling! 🚀');
+        }).catch((err: any) => {
+          console.error('❌ [TelegramBot] Erro ao conectar ao Telegram API:', err?.response?.description || err?.message);
+          console.error('👉 Verifique se o TELEGRAM_BOT_TOKEN no arquivo bot/.env está idêntico ao fornecido pelo @BotFather (sem vírgulas ou espaços).');
         });
 
         // Graceful stop
@@ -85,3 +88,4 @@ export class TelegramBotService {
     return this.bot;
   }
 }
+
