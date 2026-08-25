@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config/env.js';
 
 export interface ParsedIntent {
@@ -24,7 +24,8 @@ export interface ParsedIntent {
 }
 
 export class AIParserService {
-  private static ai = config.gemini.apiKey ? new GoogleGenAI({ apiKey: config.gemini.apiKey }) : null;
+  private static genAI = config.gemini.apiKey ? new GoogleGenerativeAI(config.gemini.apiKey) : null;
+
 
   /**
    * Main entrypoint to parse incoming user messages
@@ -50,7 +51,7 @@ export class AIParserService {
     }
 
     // 2. Try Gemini AI if API key is provided
-    if (this.ai) {
+    if (this.genAI) {
       try {
         const aiResult = await this.parseWithGemini(trimmed);
         if (aiResult && aiResult.intent !== 'unknown') {
@@ -69,7 +70,7 @@ export class AIParserService {
    * Parse with Google Gemini API
    */
   private static async parseWithGemini(text: string): Promise<ParsedIntent | null> {
-    if (!this.ai) return null;
+    if (!this.genAI) return null;
 
     const todayStr = new Date().toISOString().split('T')[0];
     const systemPrompt = `Você é um extrator de intenções financeiras para um bot de WhatsApp/Telegram.
@@ -100,18 +101,11 @@ Exemplos:
 - "ajuda" -> {"intent":"help"}`;
 
     try {
-      const response = await this.ai.models.generateContent({
-        model: config.gemini.model,
-        contents: [
-          { role: 'user', parts: [{ text: `${systemPrompt}\n\nMensagem do usuário: "${text}"` }] }
-        ],
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.1
-        }
-      });
-
-      const raw = response.text?.trim() || '';
+      const model = this.genAI.getGenerativeModel({ model: config.gemini.model || 'gemini-1.5-flash' });
+      const prompt = `${systemPrompt}\n\nMensagem do usuário: "${text}"`;
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const raw = response.text()?.trim() || '';
       const cleanJson = raw.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
       const parsed = JSON.parse(cleanJson);
       return parsed as ParsedIntent;
