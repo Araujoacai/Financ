@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Regras para documentos de Usuário (dados financeiros, perfil e código de pareamento)
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Permite consultas do bot e escrita do próprio usuário
+      allow read: if request.auth != null;
+    }
+    
+    // Regras para códigos de pareamento temporários do Bot (WhatsApp & Telegram)
+    match /bot_links/{code} {
+      allow read, write: if request.auth != null;
+      allow create: if request.auth != null;
+    }
+    
+    // Regras para mapeamento de Telefone -> UserId
+    match /phoneLinks/{phone} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Regras para mapeamento de Telegram -> UserId
+    match /telegramLinks/{chatId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

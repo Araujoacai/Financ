@@ -242,19 +242,23 @@ export class FirebaseService {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min
 
-    // Save in bot_links / linkCodes collection
-    await setDoc(doc(db, 'bot_links', code), {
-      code,
-      userId: uid,
-      createdAt: new Date().toISOString(),
-      expiresAt
-    });
-
-    // Also update in user document
+    // 1. Update in user document first (authorized for authenticated user)
     await setDoc(doc(db, 'users', uid), {
       pairingCode: code,
       pairingExpiresAt: expiresAt
     }, { merge: true });
+
+    // 2. Also try saving in bot_links collection if permitted by Firestore rules
+    try {
+      await setDoc(doc(db, 'bot_links', code), {
+        code,
+        userId: uid,
+        createdAt: new Date().toISOString(),
+        expiresAt
+      });
+    } catch (err) {
+      console.warn('[Firebase] bot_links write skipped (using users fallback):', err);
+    }
 
     return code;
   }
