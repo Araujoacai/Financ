@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import type { ThemeMode, BotConnectionInfo } from '../types';
 import { FirebaseService } from '../services/firebase';
-import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { 
   Settings as SettingsIcon, 
   Palette, 
@@ -28,7 +28,8 @@ export const Settings: React.FC = () => {
     pluggyCreds, 
     savePluggyConfig, 
     firebaseCreds, 
-    saveFirebaseConfig 
+    saveFirebaseConfig,
+    setIsAuthModalOpen
   } = useApp();
 
   const [pluggyClient, setPluggyClient] = useState(pluggyCreds.clientId);
@@ -44,6 +45,7 @@ export const Settings: React.FC = () => {
   const [botInfo, setBotInfo] = useState<BotConnectionInfo>({});
   const [generatedCode, setGeneratedCode] = useState<string>('');
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [pinFeedback, setPinFeedback] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const [linkCode, setLinkCode] = useState('');
@@ -65,17 +67,35 @@ export const Settings: React.FC = () => {
   }, [user?.uid]);
 
   const handleGenerateCode = async () => {
-    if (!user?.uid || user.uid === 'guest-demo') return;
+    if (!user || user.uid === 'guest-demo') {
+      setPinFeedback({
+        type: 'warning',
+        text: 'Você precisa entrar com uma conta (Google ou E-mail) para vincular ao WhatsApp/Telegram.'
+      });
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     setIsGeneratingCode(true);
+    setPinFeedback(null);
     try {
       const code = await FirebaseService.generatePairingCode(user.uid);
       setGeneratedCode(code);
-    } catch (e) {
+      setPinFeedback({
+        type: 'success',
+        text: `PIN ${code} gerado com sucesso! Envie "conectar ${code}" para o bot.`
+      });
+    } catch (e: any) {
       console.error('Error generating code:', e);
+      setPinFeedback({
+        type: 'error',
+        text: `Erro ao gerar PIN: ${e?.message || 'Verifique sua conexão com o Firebase'}`
+      });
     } finally {
       setIsGeneratingCode(false);
     }
   };
+
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -396,13 +416,25 @@ export const Settings: React.FC = () => {
             </div>
             <button
               onClick={handleGenerateCode}
-              disabled={isGeneratingCode || !user || user.uid === 'guest-demo'}
-              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-glow-emerald transition flex items-center gap-1.5"
+              disabled={isGeneratingCode}
+              className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-glow-emerald transition flex items-center gap-1.5 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingCode ? 'animate-spin' : ''}`} />
-              {generatedCode ? 'Gerar Novo PIN' : 'Gerar PIN'}
+              {isGeneratingCode ? 'Gerando...' : generatedCode ? 'Gerar Novo PIN' : 'Gerar PIN'}
             </button>
           </div>
+
+          {pinFeedback && (
+            <div className={`p-3 rounded-xl text-xs font-medium border ${
+              pinFeedback.type === 'success' 
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : pinFeedback.type === 'warning'
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                : 'bg-red-500/10 border-red-500/30 text-red-400'
+            }`}>
+              {pinFeedback.text}
+            </div>
+          )}
 
           {generatedCode && (
             <div className="p-3 bg-black/40 rounded-xl border border-emerald-500/40 flex flex-col sm:flex-row items-center justify-between gap-3">
