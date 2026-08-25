@@ -8,9 +8,17 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 import type { Auth } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
-import type { Firestore } from 'firebase/firestore';
-import type { UserProfile, FirebaseCredentials } from '../types';
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot 
+} from 'firebase/firestore';
+import type { Firestore, Unsubscribe } from 'firebase/firestore';
+import type { UserProfile, FirebaseCredentials, BotConnectionInfo } from '../types';
 
 export const DEFAULT_FIREBASE_CONFIG: FirebaseCredentials = {
   apiKey: "AIzaSyCOxnj-RvM-PmD99olqY8wmzZTEu762VK8",
@@ -53,6 +61,14 @@ initFirebase(savedConfig);
 export class FirebaseService {
   private static CREDENTIALS_KEY = 'aura_firebase_credentials';
 
+  static getFirestoreInstance(): Firestore | null {
+    return db;
+  }
+
+  static getAuthInstance(): Auth | null {
+    return auth;
+  }
+
   static getStoredCredentials(): FirebaseCredentials {
     try {
       const raw = localStorage.getItem(this.CREDENTIALS_KEY);
@@ -76,17 +92,13 @@ export class FirebaseService {
 
   /**
    * Waits for Firebase Auth to fully restore its session from persistence.
-   * This is critical on page load — auth state may not be ready immediately.
    */
   private static waitForAuthReady(): Promise<void> {
     return new Promise((resolve) => {
       if (!auth) return resolve();
-      // authStateReady() resolves once Firebase Auth determines the current user
-      // (whether from IndexedDB, cookie, etc.)
       if (typeof (auth as any).authStateReady === 'function') {
         (auth as any).authStateReady().then(resolve).catch(resolve);
       } else {
-        // Fallback for older SDK versions
         resolve();
       }
     });
@@ -149,7 +161,6 @@ export class FirebaseService {
 
   /**
    * Save financial data to Firestore.
-   * Firebase SDK automatically attaches the current user's auth token.
    */
   static async saveUserFinancialData(uid: string, data: {
     accounts?: any[];
@@ -166,7 +177,6 @@ export class FirebaseService {
         financialData: data,
         updatedAt: new Date().toISOString()
       }, { merge: true });
-      console.log('[Firebase] Data saved for:', uid, '| accounts:', data.accounts?.length, '| transactions:', data.transactions?.length);
     } catch (e: any) {
       console.error('[Firebase] Save error:', e?.code, e?.message);
     }
@@ -174,22 +184,17 @@ export class FirebaseService {
 
   /**
    * Load financial data from Firestore.
-   * Waits for auth state to be fully initialized before reading.
    */
   static async loadUserFinancialData(uid: string) {
     if (!db || !uid || uid === 'guest-demo') {
-      console.log('[Firebase] Load skipped: db=', !!db, 'uid=', uid);
       return null;
     }
 
-    // Wait for Firebase Auth to fully restore session from persistence
     await this.waitForAuthReady();
 
     const currentUser = auth?.currentUser;
-    console.log('[Firebase] Loading data. uid=', uid, '| auth.currentUser=', currentUser?.uid || 'null');
-
     if (!currentUser || currentUser.uid !== uid) {
-      console.warn('[Firebase] Auth mismatch — cannot load Firestore data. User must be logged in via Firebase Auth.');
+      console.warn('[Firebase] Auth mismatch — cannot load Firestore data.');
       return null;
     }
 
@@ -197,17 +202,104 @@ export class FirebaseService {
       const snap = await getDoc(doc(db, 'users', uid));
       if (snap.exists()) {
         const d = snap.data();
-        console.log('[Firebase] Document found. Has financialData:', !!d.financialData,
-          '| accounts:', d.financialData?.accounts?.length ?? 'none',
-          '| transactions:', d.financialData?.transactions?.length ?? 'none'
-        );
         return d.financialData || null;
-      } else {
-        console.log('[Firebase] No document found for user:', uid, '(first login)');
       }
     } catch (e: any) {
       console.error('[Firebase] Load error:', e?.code, e?.message);
     }
     return null;
   }
+
+  /**
+   * Subscribe to real-time changes in Firestore financialData.
+   */
+  static subscribeToFinancialData(uid: string, onUpdate: (data: any, updatedAt?: string) => void): Unsubscribe | null {
+    if (!db || !uid || uid === 'guest-demo') return null;
+
+    try {
+      const userDocRef = doc(db, 'users', uid);
+      return onSnapshot(userDocRef, (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d.financialData) {
+            onUpdate(d.financialData, d.updatedAt);
+          }
+        }
+      }, (err) => {
+        console.error('[Firebase] onSnapshot error:', err);
+      });
+    } catch (e) {
+      console.error('[Firebase] subscribe error:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Generates a 6-digit pairing code for Bot connection (WhatsApp/Telegram).
+   */
+  static async generatePairingCode(uid: string): Promise<string> {
+    if (!db || !uid) throw new Error('Database not initialized or no user.');
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min
+
+    // Save in bot_links / linkCodes collection
+    await setDoc(doc(db, 'bot_links', code), {
+      code,
+      userId: uid,
+      createdAt: new Date().toISOString(),
+      expiresAt
+    });
+
+    // Also update in user document
+    await setDoc(doc(db, 'users', uid), {
+      pairingCode: code,
+      pairingExpiresAt: expiresAt
+    }, { merge: true });
+
+    return code;
+  }
+
+  /**
+   * Subscribe to user's bot connection info (phoneNumber, telegramChatId, pairingCode).
+   */
+  static subscribeToBotInfo(uid: string, onUpdate: (info: BotConnectionInfo) => void): Unsubscribe | null {
+    if (!db || !uid || uid === 'guest-demo') return null;
+    try {
+      const userDocRef = doc(db, 'users', uid);
+      return onSnapshot(userDocRef, (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          onUpdate({
+            linkedWhatsApp: d.phoneNumber || undefined,
+            linkedTelegram: d.telegramUsername ? `@${d.telegramUsername}` : (d.telegramChatId ? `ID: ${d.telegramChatId}` : undefined),
+            pairingCode: d.pairingCode || undefined,
+            pairingExpiresAt: d.pairingExpiresAt || undefined
+          });
+        }
+      });
+    } catch (e) {
+      console.error('[Firebase] subscribeToBotInfo error:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Unlink WhatsApp or Telegram
+   */
+  static async unlinkBotChannel(uid: string, channel: 'whatsapp' | 'telegram'): Promise<void> {
+    if (!db || !uid) return;
+    const userDocRef = doc(db, 'users', uid);
+    const snap = await getDoc(userDocRef);
+    if (!snap.exists()) return;
+    const data = snap.data();
+
+    if (channel === 'whatsapp' && data.phoneNumber) {
+      await deleteDoc(doc(db, 'phoneLinks', data.phoneNumber)).catch(() => {});
+      await updateDoc(userDocRef, { phoneNumber: null });
+    } else if (channel === 'telegram' && data.telegramChatId) {
+      await deleteDoc(doc(db, 'telegramLinks', String(data.telegramChatId))).catch(() => {});
+      await updateDoc(userDocRef, { telegramChatId: null, telegramUsername: null });
+    }
+  }
 }
+

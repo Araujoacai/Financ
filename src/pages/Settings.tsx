@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import type { ThemeMode } from '../types';
+import type { ThemeMode, BotConnectionInfo } from '../types';
+import { FirebaseService } from '../services/firebase';
 import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { 
   Settings as SettingsIcon, 
@@ -12,7 +13,11 @@ import {
   Trash2,
   Lock,
   MessageSquare,
-  Smartphone
+  Smartphone,
+  Send,
+  Copy,
+  RefreshCw,
+  Unlink
 } from 'lucide-react';
 
 export const Settings: React.FC = () => {
@@ -35,18 +40,64 @@ export const Settings: React.FC = () => {
   const [fbProjectId, setFbProjectId] = useState(firebaseCreds.projectId);
   const [fbSaved, setFbSaved] = useState(false);
 
-  // WhatsApp Bot linking
+  // WhatsApp & Telegram Bot linking
+  const [botInfo, setBotInfo] = useState<BotConnectionInfo>({});
+  const [generatedCode, setGeneratedCode] = useState<string>('');
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
   const [linkCode, setLinkCode] = useState('');
   const [linkStatus, setLinkStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [linkMessage, setLinkMessage] = useState('');
+
+  // Subscribe to user's bot info in real time
+  useEffect(() => {
+    if (!user?.uid || user.uid === 'guest-demo') return;
+    const unsub = FirebaseService.subscribeToBotInfo(user.uid, (info) => {
+      setBotInfo(info);
+      if (info.pairingCode) {
+        setGeneratedCode(info.pairingCode);
+      }
+    });
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [user?.uid]);
+
+  const handleGenerateCode = async () => {
+    if (!user?.uid || user.uid === 'guest-demo') return;
+    setIsGeneratingCode(true);
+    try {
+      const code = await FirebaseService.generatePairingCode(user.uid);
+      setGeneratedCode(code);
+    } catch (e) {
+      console.error('Error generating code:', e);
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(id);
+    setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  const handleUnlink = async (channel: 'whatsapp' | 'telegram') => {
+    if (!user?.uid) return;
+    if (window.confirm(`Deseja desvincular o ${channel === 'whatsapp' ? 'WhatsApp' : 'Telegram'}?`)) {
+      await FirebaseService.unlinkBotChannel(user.uid, channel);
+    }
+  };
 
   const handleWhatsAppLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!linkCode.trim() || !user?.uid) return;
     setLinkStatus('loading');
     try {
-      const db = getFirestore();
-      const codeRef = doc(db, 'linkCodes', linkCode.trim());
+      const db = FirebaseService.getFirestoreInstance();
+      if (!db) throw new Error('DB not initialized');
+      const codeRef = doc(db, 'bot_links', linkCode.trim());
       const snap = await getDoc(codeRef);
       if (!snap.exists()) {
         setLinkStatus('error');
@@ -59,16 +110,28 @@ export const Settings: React.FC = () => {
         setLinkMessage('Código expirado. Digite "conectar" no bot para gerar um novo.');
         return;
       }
-      // Save phone → userId link in Firestore
-      const phone = data.phone as string;
-      const phoneRef = doc(db, 'phoneLinks', phone);
-      await updateDoc(phoneRef, { userId: user.uid }).catch(() =>
-        import('firebase/firestore').then(({ setDoc }) =>
-          setDoc(phoneRef, { userId: user.uid, phoneNumber: phone, linkedAt: new Date().toISOString() })
-        )
-      );
+      // Link channel
+      if (data.phone) {
+        const phone = data.phone as string;
+        const phoneRef = doc(db, 'phoneLinks', phone);
+        await updateDoc(phoneRef, { userId: user.uid }).catch(() =>
+          import('firebase/firestore').then(({ setDoc }) =>
+            setDoc(phoneRef, { userId: user.uid, phoneNumber: phone, linkedAt: new Date().toISOString() })
+          )
+        );
+        await updateDoc(doc(db, 'users', user.uid), { phoneNumber: phone });
+      } else if (data.telegramChatId) {
+        const chatId = String(data.telegramChatId);
+        const tgRef = doc(db, 'telegramLinks', chatId);
+        await updateDoc(tgRef, { userId: user.uid }).catch(() =>
+          import('firebase/firestore').then(({ setDoc }) =>
+            setDoc(tgRef, { userId: user.uid, telegramChatId: chatId, telegramUsername: data.telegramUsername || null, linkedAt: new Date().toISOString() })
+          )
+        );
+        await updateDoc(doc(db, 'users', user.uid), { telegramChatId: chatId, telegramUsername: data.telegramUsername || null });
+      }
       setLinkStatus('success');
-      setLinkMessage(`✅ WhatsApp vinculado com sucesso!`);
+      setLinkMessage(`✅ Vinculado com sucesso!`);
       setLinkCode('');
     } catch (err) {
       setLinkStatus('error');
@@ -238,58 +301,182 @@ export const Settings: React.FC = () => {
         </form>
       </div>
 
-      {/* WhatsApp Bot Section */}
-      <div className="p-6 glass-card border-green-500/20 space-y-4">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-green-400" />
-          <h3 className="text-base font-bold text-white">WhatsApp Bot</h3>
-          <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-[10px] font-bold border border-green-500/30">NOVO</span>
+      {/* WhatsApp & Telegram Assistant Section */}
+      <div className="p-6 glass-card border-emerald-500/30 space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-emerald-400" />
+            <h3 className="text-base font-bold text-white">Assistente Financeiro (WhatsApp & Telegram)</h3>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+              NOVO
+            </span>
+          </div>
         </div>
-        <p className="text-xs text-slate-400">
-          Vincule seu WhatsApp para registrar gastos, consultar saldo e resumos diretamente pelo app de mensagens.
+
+        <p className="text-xs text-slate-300 leading-relaxed">
+          Registre gastos em linguagem natural (<span className="text-emerald-300 italic">"Almoço 45 no débito"</span>, <span className="text-emerald-300 italic">"Recebi 3500"</span>) e consulte relatórios por data (<span className="text-emerald-300 italic">"quanto gastei hoje?"</span>, <span className="text-emerald-300 italic">"gastos deste mês"</span>) diretamente pelo WhatsApp (Evolution API) ou Telegram.
         </p>
 
-        <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2">
-          <p className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-            <Smartphone className="w-3.5 h-3.5 text-green-400" />
-            Como vincular:
-          </p>
-          <ol className="text-xs text-slate-400 space-y-1 list-decimal list-inside">
-            <li>Inicie o bot no PC (<code className="text-green-400">npm run dev</code>)</li>
-            <li>Escaneie o QR Code com seu WhatsApp</li>
-            <li>Envie <code className="bg-white/10 px-1.5 py-0.5 rounded text-green-300">conectar</code> para o bot</li>
-            <li>Cole o código de 6 dígitos abaixo</li>
-          </ol>
+        {/* Status of Connected Channels */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* WhatsApp Card */}
+          <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-green-500/20 border border-green-500/30 flex items-center justify-center text-green-400 font-bold">
+                <Smartphone className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                  WhatsApp (Evolution API)
+                  {botInfo.linkedWhatsApp ? (
+                    <span className="px-1.5 py-0.2 bg-green-500/20 text-green-400 text-[10px] rounded font-semibold">Conectado</span>
+                  ) : (
+                    <span className="px-1.5 py-0.2 bg-slate-500/20 text-slate-400 text-[10px] rounded">Desconectado</span>
+                  )}
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  {botInfo.linkedWhatsApp ? `Tel: ${botInfo.linkedWhatsApp}` : 'Envie "conectar" para vincular'}
+                </p>
+              </div>
+            </div>
+            {botInfo.linkedWhatsApp && (
+              <button
+                onClick={() => handleUnlink('whatsapp')}
+                className="p-1.5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg transition"
+                title="Desvincular WhatsApp"
+              >
+                <Unlink className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Telegram Card */}
+          <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sky-400 font-bold">
+                <Send className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                  Telegram Bot
+                  {botInfo.linkedTelegram ? (
+                    <span className="px-1.5 py-0.2 bg-sky-500/20 text-sky-400 text-[10px] rounded font-semibold">Conectado</span>
+                  ) : (
+                    <span className="px-1.5 py-0.2 bg-slate-500/20 text-slate-400 text-[10px] rounded">Desconectado</span>
+                  )}
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  {botInfo.linkedTelegram ? `Usuário: ${botInfo.linkedTelegram}` : 'Inicie com /start <código>'}
+                </p>
+              </div>
+            </div>
+            {botInfo.linkedTelegram && (
+              <button
+                onClick={() => handleUnlink('telegram')}
+                className="p-1.5 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg transition"
+                title="Desvincular Telegram"
+              >
+                <Unlink className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
-        <form onSubmit={handleWhatsAppLink} className="space-y-3">
-          <div>
-            <label className="block text-xs text-slate-300 mb-1">Código de Vinculação (6 dígitos)</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={linkCode}
-                onChange={e => setLinkCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="123456"
-                maxLength={6}
-                className="glass-input text-sm font-mono tracking-widest w-36 text-center"
-              />
-              <button
-                type="submit"
-                disabled={linkCode.length !== 6 || linkStatus === 'loading' || !user}
-                className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center gap-2"
-              >
-                {linkStatus === 'loading' ? '...' : linkStatus === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
-                {linkStatus === 'loading' ? 'Vinculando...' : linkStatus === 'success' ? 'Vinculado!' : 'Vincular'}
-              </button>
+        {/* Pairing Generator & Instructions */}
+        <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/20 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-white flex items-center gap-2">
+                <Key className="w-4 h-4 text-emerald-400" />
+                Gerar PIN de Conexão Rápida
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Gere um código de 6 dígitos e envie para o bot no WhatsApp ou Telegram para vincular sua conta.
+              </p>
+            </div>
+            <button
+              onClick={handleGenerateCode}
+              disabled={isGeneratingCode || !user || user.uid === 'guest-demo'}
+              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-glow-emerald transition flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingCode ? 'animate-spin' : ''}`} />
+              {generatedCode ? 'Gerar Novo PIN' : 'Gerar PIN'}
+            </button>
+          </div>
+
+          {generatedCode && (
+            <div className="p-3 bg-black/40 rounded-xl border border-emerald-500/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-400">Seu PIN de Vinculação:</span>
+                <span className="text-xl font-mono font-bold tracking-widest text-emerald-400 bg-emerald-950/60 px-3 py-1 rounded-lg border border-emerald-500/30">
+                  {generatedCode}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => copyToClipboard(`conectar ${generatedCode}`, 'cmd')}
+                  className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-xs font-mono rounded text-slate-200 transition flex items-center gap-1"
+                >
+                  <Copy className="w-3 h-3" />
+                  {copiedText === 'cmd' ? 'Copiado!' : `conectar ${generatedCode}`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-300 pt-2 border-t border-white/10">
+            <div className="space-y-1">
+              <p className="font-semibold text-green-400 flex items-center gap-1">
+                <Smartphone className="w-3.5 h-3.5" /> No WhatsApp:
+              </p>
+              <p className="text-[11px] text-slate-400">
+                1. Abra a conversa com o bot no WhatsApp.<br />
+                2. Envie o comando: <code className="text-green-300 bg-black/30 px-1 rounded">conectar {generatedCode || '123456'}</code><br />
+                3. Pronto! O bot confirmará o vínculo.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-semibold text-sky-400 flex items-center gap-1">
+                <Send className="w-3.5 h-3.5" /> No Telegram:
+              </p>
+              <p className="text-[11px] text-slate-400">
+                1. Abra o bot do Telegram.<br />
+                2. Digite <code className="text-sky-300 bg-black/30 px-1 rounded">/start {generatedCode || '123456'}</code> ou envie <code className="text-sky-300 bg-black/30 px-1 rounded">conectar {generatedCode || '123456'}</code>.<br />
+                3. Sua conta será vinculada imediatamente!
+              </p>
             </div>
           </div>
+        </div>
+
+        {/* Manual PIN Input fallback */}
+        <div className="pt-2">
+          <p className="text-xs font-semibold text-slate-300 mb-2">
+            Ou digite um PIN gerado pelo bot:
+          </p>
+          <form onSubmit={handleWhatsAppLink} className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={linkCode}
+              onChange={e => setLinkCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="123456"
+              maxLength={6}
+              className="glass-input text-sm font-mono tracking-widest w-32 text-center"
+            />
+            <button
+              type="submit"
+              disabled={linkCode.length !== 6 || linkStatus === 'loading' || !user}
+              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center gap-2"
+            >
+              {linkStatus === 'loading' ? '...' : linkStatus === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+              {linkStatus === 'loading' ? 'Vinculando...' : linkStatus === 'success' ? 'Vinculado!' : 'Confirmar PIN'}
+            </button>
+          </form>
           {linkMessage && (
-            <p className={`text-xs font-medium ${linkStatus === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+            <p className={`text-xs font-medium mt-2 ${linkStatus === 'success' ? 'text-green-400' : 'text-red-400'}`}>
               {linkMessage}
             </p>
           )}
-        </form>
+        </div>
       </div>
 
       <div className="p-6 glass-card border-red-500/20 space-y-3">

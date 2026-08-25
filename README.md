@@ -1,32 +1,72 @@
-# React + TypeScript + Vite
+# 💎 Financ — Sistema de Gestão Financeira + Bot WhatsApp & Telegram
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Sistema completo de controle financeiro pessoal e empresarial construído com **React 19 + TypeScript + TailwindCSS + Firebase Firestore**, integrado a um **Bot Inteligente para WhatsApp (via Evolution API)** e **Telegram** com suporte a IA (Google Gemini).
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 📁 Estrutura do Repositório
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```
+├── src/                     # Aplicação Web (Frontend React 19 + Vite)
+│   ├── components/          # Componentes visuais e modais
+│   ├── context/             # AppContext com sincronização em tempo real (onSnapshot)
+│   ├── pages/               # Dashboard, Extrato, Orçamentos, Configurações, etc.
+│   ├── services/            # Serviços de Firebase, Pluggy e Notificações
+│   └── types/               # Tipagens TypeScript
+│
+├── bot/                     # Serviço do Bot (WhatsApp Evolution API + Telegram)
+│   ├── src/
+│   │   ├── config/          # Variáveis de ambiente e credenciais
+│   │   ├── handlers/        # Webhook da Evolution API e Mensagens
+│   │   ├── services/        # Firebase Firestore, Evolution API, Telegram, Gemini AI
+│   │   └── templates/       # Formatação de respostas BRL com emojis
+│   ├── docker-compose.yml   # 1-Click Setup: Evolution API v2 + Redis + Bot
+│   ├── Dockerfile
+│   └── README.md            # Guia detalhado do Bot
+│
+└── package.json
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+---
+
+## ⚡ Início Rápido
+
+### 1. Aplicação Web (Frontend)
+
+```bash
+# Instalar dependências
+npm install
+
+# Iniciar servidor de desenvolvimento
+npm run dev
+```
+
+Abra o navegador em `http://localhost:5173`.
+
+### 2. Bot de WhatsApp (Evolution API) & Telegram
+
+```bash
+# Entrar na pasta do bot
+cd bot
+
+# Instalar dependências
+npm install
+
+# Iniciar o bot em modo dev
+npm run dev
+```
+
+Para subir a infraestrutura completa de WhatsApp com Docker:
+```bash
+cd bot
+docker compose up -d --build
+```
+
+---
+
+## 📲 Recursos do Assistente Virtual
+
+- **Linguagem Natural**: *"Gastei 45 no almoço"*, *"Gasolina 150 no nubank"*, *"Recebi 3500 de salário"*.
+- **Consultas por Data**: *"Quanto gastei hoje?"*, *"Gastos de ontem"*, *"Resumo de agosto"*.
+- **Saldos e Contas**: *"Qual meu saldo?"*, *"Contas a pagar"*.
+- **Tempo Real**: Qualquer gasto enviado pelo WhatsApp/Telegram atualiza a tela do computador instantaneamente!

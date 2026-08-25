@@ -6,8 +6,19 @@ export interface UserProfile {
   email: string;
   photoURL?: string;
   provider: 'google' | 'email' | 'guest';
+  phoneNumber?: string;
+  telegramChatId?: string;
+  telegramUsername?: string;
   createdAt: string;
 }
+
+export interface BotConnectionInfo {
+  linkedWhatsApp?: string;
+  linkedTelegram?: string;
+  pairingCode?: string;
+  pairingExpiresAt?: string;
+}
+
 
 export type AccountType = 'checking' | 'savings' | 'credit' | 'investment';
 

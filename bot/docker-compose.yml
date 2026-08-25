@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------
+  # Redis Cache (Required for Evolution API)
+  # -------------------------------------------------------------
+  redis:
+    image: redis:alpine
+    container_name: evolution_redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - financ_net
+
+  # -------------------------------------------------------------
+  # Evolution API v2 (WhatsApp Gateway)
+  # -------------------------------------------------------------
+  evolution-api:
+    image: atendai/evolution-api:v2.2.2
+    container_name: evolution_api
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_URL=http://localhost:8080
+      - AUTHENTICATION_API_KEY=evolution-global-api-key
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379
+      - DATABASE_ENABLED=false
+      - WEBHOOK_GLOBAL_ENABLED=false
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      - redis
+    networks:
+      - financ_net
+
+  # -------------------------------------------------------------
+  # Financ Bot Service (WhatsApp Webhook + Telegram + Firebase)
+  # -------------------------------------------------------------
+  financ-bot:
+    build: .
+    container_name: financ_bot
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=evolution-global-api-key
+      - EVOLUTION_INSTANCE_NAME=financ-bot
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_USE_POLLING=true
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=gemini-2.5-flash
+      - FIREBASE_API_KEY=AIzaSyCOxnj-RvM-PmD99olqY8wmzZTEu762VK8
+      - FIREBASE_PROJECT_ID=financie-bf62f
+    depends_on:
+      - evolution-api
+    networks:
+      - financ_net
+
+volumes:
+  redis_data:
+  evolution_instances:
+
+networks:
+  financ_net:
+    driver: bridge

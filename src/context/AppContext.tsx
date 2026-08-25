@@ -94,12 +94,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isLoadingCloudData, setIsLoadingCloudData] = useState(false);
 
   // Ref to block Firestore saves until initial load completes
-  // This prevents local empty state from overwriting cloud data on first render
   const cloudLoadedRef = useRef(false);
+  const isRemoteUpdateRef = useRef(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ---------------------------------------------------------------
-  // LOAD from Firestore when user logs in — ALWAYS overrides local
+  // Real-time Firestore listener when user logs in
   // ---------------------------------------------------------------
   useEffect(() => {
     if (!user?.uid || user.uid === 'guest-demo') {
@@ -120,44 +120,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // Authenticated user: ALWAYS load from Firestore first
+    // Authenticated user: subscribe to real-time updates from Firestore
     cloudLoadedRef.current = false;
     setIsLoadingCloudData(true);
 
-    FirebaseService.loadUserFinancialData(user.uid)
-      .then(data => {
-        if (data) {
-          // Cloud data exists — use it (overrides anything in localStorage)
-          if (data.accounts !== undefined) setAccounts(data.accounts);
-          if (data.transactions !== undefined) setTransactions(data.transactions);
-          if (data.bills !== undefined) setBills(data.bills);
-          if (data.budgets !== undefined) setBudgets(data.budgets);
-          if (data.goals !== undefined) setGoals(data.goals);
-          if (data.investments !== undefined) setInvestments(data.investments);
-        } else {
-          // First login ever — try to migrate localStorage data if any
-          const savedAccounts = localStorage.getItem('aura_accounts');
-          const savedTx = localStorage.getItem('aura_transactions');
-          const savedBills = localStorage.getItem('aura_bills');
-          const savedBudgets = localStorage.getItem('aura_budgets');
-          const savedGoals = localStorage.getItem('aura_goals');
-          const savedInvestments = localStorage.getItem('aura_investments');
-          if (savedAccounts) setAccounts(JSON.parse(savedAccounts));
-          if (savedTx) setTransactions(JSON.parse(savedTx));
-          if (savedBills) setBills(JSON.parse(savedBills));
-          if (savedBudgets) setBudgets(JSON.parse(savedBudgets));
-          if (savedGoals) setGoals(JSON.parse(savedGoals));
-          if (savedInvestments) setInvestments(JSON.parse(savedInvestments));
-        }
-      })
-      .catch(err => {
-        console.error('Error loading Firestore data:', err);
-      })
-      .finally(() => {
-        // Now it's safe to allow saves
-        cloudLoadedRef.current = true;
-        setIsLoadingCloudData(false);
-      });
+    const unsubscribe = FirebaseService.subscribeToFinancialData(user.uid, (data) => {
+      if (data) {
+        isRemoteUpdateRef.current = true;
+        if (data.accounts !== undefined) setAccounts(data.accounts);
+        if (data.transactions !== undefined) setTransactions(data.transactions);
+        if (data.bills !== undefined) setBills(data.bills);
+        if (data.budgets !== undefined) setBudgets(data.budgets);
+        if (data.goals !== undefined) setGoals(data.goals);
+        if (data.investments !== undefined) setInvestments(data.investments);
+      }
+      cloudLoadedRef.current = true;
+      setIsLoadingCloudData(false);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [user?.uid]);
 
   // ---------------------------------------------------------------
@@ -166,6 +149,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const saveToFirestore = useCallback(() => {
     if (!user?.uid || user.uid === 'guest-demo') return;
     if (!cloudLoadedRef.current) return; // Block saves until loaded
+    if (isRemoteUpdateRef.current) {
+      isRemoteUpdateRef.current = false;
+      return; // Skip saving back what just came from remote
+    }
 
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
@@ -177,7 +164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         goals,
         investments,
       });
-    }, 1500); // Debounce 1.5s to avoid excessive writes
+    }, 1200);
   }, [user?.uid, accounts, transactions, bills, budgets, goals, investments]);
 
   useEffect(() => {
